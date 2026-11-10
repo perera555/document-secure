@@ -181,6 +181,99 @@ body {
   .tilt-card, .folder-3d .folder-front, .folder-3d .folder-paper { transition: none; transform: none !important; }
 }
 
+/* ---------- Global polish ---------- */
+::selection {
+  background: rgb(99 102 241 / 0.35);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(99 102 241 / 0.5) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(rgb(99 102 241 / 0.7), rgb(14 165 233 / 0.7));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Shine sweep on primary buttons */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.45) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+}
+.btn-primary:hover::after {
+  transform: translateX(120%);
+}
+
+/* Cards: subtle lift on focus for keyboard users */
+a.card:focus-visible,
+.tilt-scene a:focus-visible {
+  outline: 3px solid rgb(99 102 241 / 0.7);
+  outline-offset: 3px;
+}
+
+/* Scroll reveal (progressive: only where supported) */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 28%;
+  }
+}
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(48px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Animated gradient border */
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes spin-angle {
+  to { --angle: 360deg; }
+}
+.glow-border {
+  position: relative;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle), transparent 60%, #818cf8, #38bdf8, #e879f9, transparent 95%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spin-angle 6s linear infinite;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.tilt-scene:hover .glow-border::before,
+.glow-border:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .glow-border::before { animation: none; }
+  .btn-primary::after { display: none; }
+}
+
 /* ---------- Landing page ---------- */
 @keyframes aurora {
   0%, 100% { transform: translate(0, 0) scale(1); }

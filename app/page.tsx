@@ -87,7 +87,7 @@ const FAQ = [
 
 export default function Home() {
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#05060f] text-slate-200">
+    <div className="relative min-h-dvh overflow-hidden bg-[#05060f] text-slate-200" style={{ backgroundColor: "#05060f", color: "#e2e8f0", colorScheme: "dark" }}>
       {/* Aurora background */}
       <div className="pointer-events-none absolute inset-0">
         <div className="aurora absolute -left-40 -top-40 h-[620px] w-[620px] rounded-full bg-indigo-600/35 blur-[120px]" />
@@ -134,7 +134,8 @@ export default function Home() {
             <InstallButton />
             <Link
               href="/vault"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-base font-semibold text-white backdrop-blur transition hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-semibold shadow-xl shadow-black/30 transition hover:bg-slate-100"
+              style={{ color: "#0f172a" }}
             >
               Open in browser <ArrowRight size={18} />
             </Link>
@@ -163,7 +164,7 @@ export default function Home() {
         </section>
 
         {/* Stats */}
-        <section className="mx-auto max-w-5xl px-4">
+        <section className="reveal mx-auto max-w-5xl px-4">
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 sm:grid-cols-4">
             {[
               ["17", "smart folders"],
@@ -180,12 +181,12 @@ export default function Home() {
         </section>
 
         {/* Bento features */}
-        <section id="features" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-28">
+        <section id="features" className="reveal mx-auto max-w-6xl scroll-mt-24 px-4 py-28">
           <SectionTitle eyebrow="Features" title={<>Built for real family paperwork</>} text="From a hospital report to a 20-year-old deed: scan it once and always find it again." />
           <div className="mt-14 grid gap-4 md:grid-cols-6">
             {/* Scan tile */}
             <Tilt3D className="md:col-span-4" max={6}>
-            <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-indigo-500/15 to-transparent p-6 h-full">
+            <div className="group glow-border relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-indigo-500/15 to-transparent p-6 h-full">
               <Camera className="text-indigo-300" />
               <h3 className="mt-4 text-xl font-bold text-white">Scan with phone, webcam or printer</h3>
               <p className="mt-2 max-w-md text-sm text-slate-300">Full-resolution camera capture, auto-enhance that turns paper white and text sharp, and automatic import from your scanner&apos;s folder.</p>
@@ -202,7 +203,7 @@ export default function Home() {
             </Tilt3D>
             {/* Printer */}
             <Tilt3D className="md:col-span-2" max={6}>
-            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-amber-500/15 to-transparent p-6 h-full">
+            <div className="glow-border relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-amber-500/15 to-transparent p-6 h-full">
               <Printer className="text-amber-300" />
               <h3 className="mt-4 text-xl font-bold text-white">Printer-scanner auto-import</h3>
               <p className="mt-2 text-sm text-slate-300">Pick the scan folder once. New scans appear in the app by themselves.</p>
@@ -217,7 +218,7 @@ export default function Home() {
             </Tilt3D>
             {/* Auto read */}
             <Tilt3D className="md:col-span-3" max={6}>
-            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-sky-500/15 to-transparent p-6 h-full">
+            <div className="glow-border relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-sky-500/15 to-transparent p-6 h-full">
               <ScanText className="text-sky-300" />
               <h3 className="mt-4 text-xl font-bold text-white">Reads every detail for you</h3>
               <p className="mt-2 text-sm text-slate-300">Names, NIC, passport and certificate numbers, dates, hospital and more, filled in automatically.</p>
@@ -233,7 +234,7 @@ export default function Home() {
             </Tilt3D>
             {/* Folders */}
             <Tilt3D className="md:col-span-3" max={6}>
-            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-fuchsia-500/15 to-transparent p-6 h-full">
+            <div className="glow-border relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-fuchsia-500/15 to-transparent p-6 h-full">
               <FolderTree className="text-fuchsia-300" />
               <h3 className="mt-4 text-xl font-bold text-white">Filed under each person&apos;s name</h3>
               <p className="mt-2 text-sm text-slate-300">Every person gets a 3D ID card and their own folders. Matching works with initials and ID numbers.</p>
@@ -252,7 +253,7 @@ export default function Home() {
               { icon: Lock, color: "text-emerald-300 from-emerald-500/15", t: "Private by design", d: "Documents stay on your device. Download a ZIP or backup any time." },
               { icon: WifiOff, color: "text-slate-300 from-slate-400/15", t: "Works offline", d: "Installed app opens and reads text without internet." },
             ].map((f) => (
-              <Tilt3D key={f.t} className="md:col-span-2" max={8}><div className={`h-full rounded-3xl border border-white/10 bg-linear-to-br ${f.color.split(" ")[1]} to-transparent p-6`}>
+              <Tilt3D key={f.t} className="md:col-span-2" max={8}><div className={`glow-border h-full rounded-3xl border border-white/10 bg-linear-to-br ${f.color.split(" ")[1]} to-transparent p-6`}>
                 <f.icon className={f.color.split(" ")[0]} />
                 <h3 className="mt-4 text-lg font-bold text-white">{f.t}</h3>
                 <p className="mt-1.5 text-sm text-slate-300">{f.d}</p>
@@ -262,7 +263,7 @@ export default function Home() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-28">
+        <section id="how" className="reveal mx-auto max-w-6xl scroll-mt-24 px-4 pb-28">
           <SectionTitle eyebrow="How it works" title="Three steps. That's it." />
           <div className="relative mt-14 grid gap-6 md:grid-cols-3">
             <div className="absolute left-[16%] right-[16%] top-10 hidden h-px bg-linear-to-r from-indigo-500 via-sky-400 to-fuchsia-500 md:block" />
@@ -283,7 +284,7 @@ export default function Home() {
         </section>
 
         {/* Install */}
-        <section id="install" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-28">
+        <section id="install" className="reveal mx-auto max-w-6xl scroll-mt-24 px-4 pb-28">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-linear-to-br from-indigo-600/30 via-[#0b0e22] to-sky-600/20 p-8 sm:p-12">
             <div className="aurora absolute -right-20 -top-20 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl" />
             <div className="relative grid items-center gap-10 lg:grid-cols-2">
@@ -297,7 +298,7 @@ export default function Home() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {DEVICES.map((d) => (
-                  <Tilt3D key={d.name} max={14}><div className="h-full rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:bg-white/10">
+                  <Tilt3D key={d.name} max={14}><div className="glow-border h-full rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:bg-white/10">
                     <d.icon className="text-sky-300" size={28} />
                     <p className="mt-3 font-bold text-white">{d.name}</p>
                     <p className="mt-1 text-xs text-slate-300">{d.how}</p>
@@ -309,7 +310,7 @@ export default function Home() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="mx-auto max-w-3xl scroll-mt-24 px-4 pb-28">
+        <section id="faq" className="reveal mx-auto max-w-3xl scroll-mt-24 px-4 pb-28">
           <SectionTitle eyebrow="FAQ" title="Questions" />
           <div className="mt-10 divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
             {FAQ.map((f) => (
@@ -325,7 +326,7 @@ export default function Home() {
         </section>
 
         {/* Final CTA */}
-        <section className="mx-auto max-w-6xl px-4 pb-20">
+        <section className="reveal mx-auto max-w-6xl px-4 pb-20">
           <div className="relative overflow-hidden rounded-[2rem] bg-linear-to-r from-indigo-600 via-violet-600 to-sky-500 p-10 text-center shadow-[0_30px_120px_-30px_rgb(99_102_241/0.8)] sm:p-16">
             <div className="grid-bg absolute inset-0 opacity-60" />
             <ShieldCheck className="relative mx-auto text-white" size={44} />
@@ -333,7 +334,11 @@ export default function Home() {
             <p className="relative mx-auto mt-3 max-w-lg text-white/80">Free, private, and ready in seconds.</p>
             <div className="relative mt-8 flex flex-wrap justify-center gap-3">
               <InstallButton className="bg-none! bg-white! text-indigo-700! shadow-xl" />
-              <Link href="/vault" className="inline-flex items-center gap-2 rounded-xl border border-white/40 px-6 py-3.5 font-semibold text-white hover:bg-white/10">
+              <Link
+                href="/vault"
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 font-semibold shadow-xl transition hover:brightness-125"
+                style={{ backgroundColor: "#0f172a", color: "#ffffff" }}
+              >
                 Open in browser <ArrowRight size={18} />
               </Link>
             </div>

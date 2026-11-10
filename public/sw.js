@@ -1,6 +1,6 @@
 // DocSecure service worker: makes the installed app open and work offline.
 // Documents themselves live in IndexedDB on the device, never in this cache.
-const CACHE = "docsecure-v1";
+const CACHE = "docsecure-v2";
 const PRECACHE = ["/", "/vault", "/scan", "/settings", "/icon-192.png", "/icon-512.png", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
