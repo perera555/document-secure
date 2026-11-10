@@ -71,6 +71,116 @@ body {
   @apply mb-1 block text-xs font-medium text-muted;
 }
 
+/* ---------- 3D cards ---------- */
+.tilt-scene {
+  perspective: 1100px;
+}
+.tilt-card {
+  --rx: 0deg;
+  --ry: 0deg;
+  --gx: 50%;
+  --gy: 0%;
+  position: relative;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.4s ease;
+  border-radius: 1rem;
+  will-change: transform;
+}
+.tilt-card[data-active] {
+  transition: transform 0.08s linear, box-shadow 0.4s ease;
+}
+.tilt-scene:hover .tilt-card {
+  box-shadow:
+    0 30px 60px -20px rgb(79 70 229 / 0.35),
+    0 18px 36px -18px rgb(0 0 0 / 0.3);
+}
+.tilt-glare {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--gx) var(--gy), rgb(255 255 255 / 0.45), transparent 55%);
+  mix-blend-mode: soft-light;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  transform: translateZ(1px);
+}
+.tilt-scene:hover .tilt-glare {
+  opacity: 1;
+}
+.layer-1 { transform: translateZ(20px); }
+.layer-2 { transform: translateZ(40px); }
+.layer-3 { transform: translateZ(60px); }
+
+/* 3D folder */
+.folder-3d {
+  position: relative;
+  transform-style: preserve-3d;
+}
+.folder-3d .folder-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+}
+.folder-3d .folder-back::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -10px;
+  width: 42%;
+  height: 22px;
+  border-radius: 0.8rem 0.8rem 0 0;
+  background: inherit;
+}
+.folder-3d .folder-paper {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 8px;
+  height: 60%;
+  border-radius: 0.5rem;
+  background: linear-gradient(#fff, #eef2ff);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
+  transform: translateZ(8px) rotate(-3deg);
+  transition: transform 0.4s ease;
+}
+.folder-3d .folder-paper + .folder-paper {
+  transform: translateZ(10px) rotate(2deg);
+  left: 12%;
+}
+.folder-3d .folder-front {
+  position: relative;
+  border-radius: 1rem;
+  transform-origin: bottom;
+  transform: translateZ(20px) rotateX(-8deg);
+  transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: 0 -6px 16px -6px rgb(0 0 0 / 0.25) inset, 0 10px 20px -10px rgb(0 0 0 / 0.35);
+}
+.tilt-scene:hover .folder-3d .folder-front {
+  transform: translateZ(20px) rotateX(-22deg);
+}
+.tilt-scene:hover .folder-3d .folder-paper {
+  transform: translateZ(8px) translateY(-14px) rotate(-4deg);
+}
+.tilt-scene:hover .folder-3d .folder-paper + .folder-paper {
+  transform: translateZ(10px) translateY(-8px) rotate(3deg);
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: perspective(1100px) rotateY(-35deg) rotateX(12deg) translateY(30px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.card-in {
+  animation: card-in 0.7s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-in { animation: none; }
+  .tilt-card, .folder-3d .folder-front, .folder-3d .folder-paper { transition: none; transform: none !important; }
+}
+
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }

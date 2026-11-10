@@ -7,6 +7,7 @@ import { db, type VaultDocument } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
 import { downloadDocument } from "@/lib/backup";
 import { BlobImage, expiryStatus, formatDate } from "./ui";
+import { Tilt3D } from "./Tilt3D";
 
 export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: string }) {
   const router = useRouter();
@@ -20,7 +21,8 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
   };
 
   return (
-    <Link href={`/doc/${doc.id}`} className="group card relative overflow-hidden transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
+    <Tilt3D max={12}>
+    <Link href={`/doc/${doc.id}`} className="group card relative block overflow-hidden">
       <div className="relative aspect-[3/4] overflow-hidden bg-black/5 dark:bg-white/5">
         {doc.thumbnail ? (
           <BlobImage blob={doc.thumbnail} alt={doc.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -69,5 +71,6 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
         </p>
       </div>
     </Link>
+    </Tilt3D>
   );
 }

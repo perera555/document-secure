@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, ChevronDown, Pencil, ScanLine, Trash2, Sparkles, Folder, Plus, FileText } from "lucide-react";
 import { DocTile } from "@/components/DocTile";
+import { Tilt3D } from "@/components/Tilt3D";
 import { Download } from "lucide-react";
 import { downloadDocument } from "@/lib/backup";
 import { db, deletePerson } from "@/lib/db";
@@ -13,6 +14,19 @@ import { CATEGORIES } from "@/lib/categories";
 import { PERSON_FIELDS, collectDetails } from "@/lib/gather";
 import { Avatar, Empty, formatDate } from "@/components/ui";
 import { PersonForm } from "@/components/PersonForm";
+
+function TabButton({ active, onClick, gradient, children }: { active: boolean; onClick: () => void; gradient: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
+        active ? `bg-linear-to-r ${gradient} text-white shadow-lg` : "card hover:bg-black/3 dark:hover:bg-white/5"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function PersonPage() {
   const { personId } = useParams<{ personId: string }>();
@@ -22,6 +36,8 @@ export default function PersonPage() {
   const [editing, setEditing] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [showCollected, setShowCollected] = useState(false);
+  const [tab, setTab] = useState<string>("all");
+  const [showDetails, setShowDetails] = useState(false);
 
   if (person === undefined || docs === undefined) {
     return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -35,6 +51,7 @@ export default function PersonPage() {
   const used = CATEGORIES.filter((c) => counts.has(c.id));
   const unused = CATEGORIES.filter((c) => !counts.has(c.id));
   const folders = showAll ? [...used, ...unused] : used.length ? used : CATEGORIES.slice(0, 6);
+  const shownDocs = (tab === "all" ? docs : docs.filter((d) => d.category === tab)).sort((a, b) => b.createdAt - a.createdAt);
   const details = PERSON_FIELDS.filter((f) => person[f.key]);
   const collected = collectDetails(docs);
 
@@ -81,7 +98,13 @@ export default function PersonPage() {
           </div>
 
           {details.length > 0 || person.extraFields?.length ? (
-            <dl className="mt-6 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <>
+            <button className="mt-4 flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-300" onClick={() => setShowDetails((s) => !s)}>
+              {showDetails ? "Hide details" : `Show all details (${details.length + (person.extraFields?.length ?? 0)})`}
+              <ChevronDown size={16} className={`transition ${showDetails ? "rotate-180" : ""}`} />
+            </button>
+            {showDetails && (
+            <dl className="animate-pop mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
               {details.map((f) => (
                 <div key={f.key} className={f.key === "address" ? "sm:col-span-2 lg:col-span-3" : ""}>
                   <dt className="text-xs font-medium text-muted">{f.label}</dt>
@@ -95,6 +118,8 @@ export default function PersonPage() {
                 </div>
               ))}
             </dl>
+            )}
+            </>
           ) : (
             <button onClick={() => setEditing(true)} className="mt-6 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted hover:border-indigo-400 hover:text-indigo-500">
               + Add ID number, date of birth, mobile, email and other details
@@ -102,6 +127,44 @@ export default function PersonPage() {
           )}
           {person.notes && <p className="mt-4 rounded-xl bg-black/3 p-3 text-sm dark:bg-white/4">{person.notes}</p>}
         </div>
+      </section>
+
+      {/* All documents, each shown separately, filterable by folder */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">
+            All documents <span className="text-base font-medium text-muted">({docs.length})</span>
+          </h2>
+          <Link href={`/scan?person=${person.id}${tab !== "all" ? `&category=${tab}` : ""}`} className="btn-primary">
+            <Plus size={16} /> Add document
+          </Link>
+        </div>
+        {docs.length > 0 && (
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            <TabButton active={tab === "all"} onClick={() => setTab("all")} gradient="from-indigo-600 to-sky-500">
+              📚 All <span className="opacity-70">{docs.length}</span>
+            </TabButton>
+            {used.map((c) => (
+              <TabButton key={c.id} active={tab === c.id} onClick={() => setTab(c.id)} gradient={c.gradient}>
+                {c.emoji} {c.label} <span className="opacity-70">{counts.get(c.id)}</span>
+              </TabButton>
+            ))}
+          </div>
+        )}
+        {docs.length === 0 ? (
+          <Empty
+            icon={<FileText size={28} />}
+            title="No documents yet"
+            text={`Scan or upload ${person.fullName}'s medical reports, passport, ID and certificates.`}
+            action={<Link href={`/scan?person=${person.id}`} className="btn-primary"><ScanLine size={18} /> Scan now</Link>}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {shownDocs.map((d) => (
+              <DocTile key={d.id} doc={d} ownerName={person.fullName} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Folders */}
@@ -112,52 +175,36 @@ export default function PersonPage() {
             {showAll ? "Show used folders" : "Show all folders"}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-7 pt-3 sm:grid-cols-3 lg:grid-cols-4">
           {folders.map((c) => {
             const n = counts.get(c.id) ?? 0;
             return (
-              <Link
-                key={c.id}
-                href={`/vault/${person.id}/${c.id}`}
-                className={`group relative overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 hover:shadow-xl ${
-                  n ? `bg-linear-to-br ${c.gradient} text-white shadow-lg` : "card"
-                }`}
-              >
-                {/* folder tab */}
-                <div className={`absolute left-4 top-0 h-2 w-12 rounded-b-md ${n ? "bg-white/30" : "bg-black/10 dark:bg-white/10"}`} />
-                <div className="text-3xl drop-shadow-sm">{c.emoji}</div>
-                <p className="mt-3 font-semibold">{c.label}</p>
-                <p className={`text-xs ${n ? "text-white/80" : "text-muted"}`}>{n ? `${n} document${n > 1 ? "s" : ""}` : "Empty"}</p>
-              </Link>
+              <Tilt3D key={c.id} max={14} glare={false}>
+                <Link href={`/vault/${person.id}/${c.id}`} className="folder-3d block h-36" aria-label={`${c.label} folder, ${n} documents`}>
+                  {/* back of the folder (with tab) */}
+                  <div className={`folder-back bg-linear-to-br ${c.gradient} ${n ? "" : "opacity-40 grayscale"} brightness-75`} />
+                  {/* papers peeking out */}
+                  {n > 0 && <div className="folder-paper" />}
+                  {n > 1 && <div className="folder-paper" />}
+                  {/* front flap */}
+                  <div className={`folder-front absolute inset-x-0 bottom-0 h-[78%] bg-linear-to-br ${c.gradient} p-4 text-white ${n ? "" : "opacity-60 grayscale"}`}>
+                    <div className="absolute inset-x-0 top-0 h-px bg-white/50" />
+                    <div className="flex h-full flex-col justify-between">
+                      <span className="text-3xl drop-shadow-md">{c.emoji}</span>
+                      <div>
+                        <p className="font-semibold leading-tight drop-shadow">{c.label}</p>
+                        <p className="text-xs text-white/85">{n ? `${n} document${n > 1 ? "s" : ""}` : "Empty"}</p>
+                      </div>
+                    </div>
+                    {n > 0 && (
+                      <span className="absolute right-3 top-3 grid h-7 min-w-7 place-items-center rounded-full bg-white/25 px-2 text-xs font-bold backdrop-blur">{n}</span>
+                    )}
+                  </div>
+                </Link>
+              </Tilt3D>
             );
           })}
         </div>
-      </section>
-
-      {/* All documents, grouped by folder */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">All documents <span className="text-base font-medium text-muted">({docs.length})</span></h2>
-          <Link href={`/scan?person=${person.id}`} className="btn-ghost"><Plus size={16} /> Add document</Link>
-        </div>
-        {docs.length === 0 ? (
-          <Empty icon={<FileText size={28} />} title="No documents yet" text={`Scan or upload ${person.fullName}'s medical reports, passport, ID and certificates.`} action={<Link href={`/scan?person=${person.id}`} className="btn-primary"><ScanLine size={18} /> Scan now</Link>} />
-        ) : (
-          used.map((c) => {
-            const list = docs.filter((d) => d.category === c.id).sort((a, b) => b.createdAt - a.createdAt);
-            return (
-              <div key={c.id}>
-                <Link href={`/vault/${person.id}/${c.id}`} className="mb-3 inline-flex items-center gap-2 font-semibold hover:underline">
-                  <span className={`grid h-8 w-8 place-items-center rounded-lg bg-linear-to-br ${c.gradient} text-base shadow`}>{c.emoji}</span>
-                  {c.label} <span className="text-sm font-normal text-muted">{list.length}</span>
-                </Link>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                  {list.map((d) => <DocTile key={d.id} doc={d} ownerName={person.fullName} />)}
-                </div>
-              </div>
-            );
-          })
-        )}
       </section>
 
       {/* All details gathered from documents */}

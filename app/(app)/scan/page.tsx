@@ -19,6 +19,7 @@ import {
 } from "@/lib/scanner-folder";
 import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
+import { Tilt3D } from "@/components/Tilt3D";
 
 interface Page {
   id: string;
@@ -345,7 +346,7 @@ function Review({
   const [owner, setOwner] = useState<string>(initialOwner);
   const [newName, setNewName] = useState(ex.ownerName);
   const [category, setCategory] = useState<CategoryId>(ex.category !== "other" ? ex.category : preset.category ?? "other");
-  const [title, setTitle] = useState(ex.title || getCategory(ex.category).label);
+  const [title, setTitle] = useState(ex.title);
   const [documentNumber, setDocumentNumber] = useState(ex.documentNumber);
   const [issueDate, setIssueDate] = useState(ex.issueDate);
   const [expiryDate, setExpiryDate] = useState(ex.expiryDate);
@@ -358,6 +359,7 @@ function Review({
 
   const currentEx: Extraction = { ...ex, category, documentNumber, fields };
   const ownerPerson = people.find((p) => p.id === owner);
+  const ownerDocs = useLiveQuery(() => (owner && owner !== "new" ? db.documents.where("personId").equals(owner).toArray() : []), [owner], []);
   const toFill = ownerPerson ? detailsToFill(ownerPerson, currentEx) : detailsFromExtraction(currentEx);
   const fillList = Object.entries(toFill) as [string, string][];
   const labelOf = (k: string) => PERSON_FIELDS.find((f) => f.key === k)?.label ?? k;
@@ -448,24 +450,58 @@ function Review({
             )}
           </section>
 
-          {/* Folder */}
-          <section className="card p-5">
-            <h2 className="mb-3 font-semibold">Save in folder</h2>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {CATEGORIES.map((c) => (
-                <button key={c.id} onClick={() => setCategory(c.id)} className={`rounded-xl border p-2.5 text-center transition ${category === c.id ? `border-transparent bg-linear-to-br ${c.gradient} text-white shadow-lg` : "border-border hover:bg-black/3 dark:hover:bg-white/3"}`}>
-                  <div className="text-2xl">{c.emoji}</div>
-                  <div className="mt-1 text-[11px] font-medium leading-tight">{c.label}</div>
-                </button>
-              ))}
-            </div>
-          </section>
+          {/* Folder – shown inside the owner's card */}
+          <Tilt3D max={5}>
+            <section className="card overflow-hidden">
+              <div className={`flex items-center gap-3 bg-linear-to-r ${ownerPerson?.color ?? "from-indigo-500 to-sky-500"} px-4 py-3 text-white`}>
+                {ownerPerson ? (
+                  <Avatar person={ownerPerson} size={44} />
+                ) : (
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-white/20"><UserPlus size={20} /></span>
+                )}
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/80">Save into card</p>
+                  <p className="truncate font-bold">{ownerPerson?.fullName ?? (newName || "New person")}</p>
+                </div>
+                <span className="ml-auto rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur">
+                  {getCategory(category).emoji} {getCategory(category).label}
+                </span>
+              </div>
+              <div className="p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Choose folder</p>
+                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+                  {CATEGORIES.map((c) => {
+                    const n = ownerDocs.filter((d) => d.category === c.id).length;
+                    const active = category === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setCategory(c.id)}
+                        className={`relative rounded-xl p-2.5 pt-3 text-center transition duration-300 ${
+                          active
+                            ? `bg-linear-to-br ${c.gradient} -translate-y-1 text-white shadow-xl ring-2 ring-white/60`
+                            : "border border-border hover:-translate-y-0.5 hover:bg-black/3 hover:shadow-md dark:hover:bg-white/3"
+                        }`}
+                      >
+                        {/* folder tab */}
+                        <span className={`absolute left-2.5 top-0 h-1.5 w-8 rounded-b ${active ? "bg-white/40" : `bg-linear-to-r ${c.gradient} opacity-60`}`} />
+                        <div className="text-2xl">{c.emoji}</div>
+                        <div className="mt-1 text-[11px] font-semibold leading-tight">{c.label}</div>
+                        {n > 0 && <div className={`text-[10px] ${active ? "text-white/80" : "text-muted"}`}>{n} saved</div>}
+                        {active && <Check size={14} className="absolute right-1.5 top-1.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </Tilt3D>
         </div>
 
         {/* Details */}
         <section className="card space-y-4 p-5">
           <h2 className="font-semibold">Document details</h2>
-          <div><label className="label">Title</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div><label className="label">Title</label><input className="input" placeholder={`e.g. ${getCategory(category).label} – ${new Date().getFullYear()}`} value={title} onChange={(e) => setTitle(e.target.value)} /></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Document / reference number</label><input className="input" value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} /></div>
             <div><label className="label">Issued by</label><input className="input" value={issuer} onChange={(e) => setIssuer(e.target.value)} /></div>
