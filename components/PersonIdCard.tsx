@@ -130,7 +130,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
               </span>
             </div>
             {/* machine readable zone */}
-            <div className="relative bg-black/4 px-4 py-1.5 font-mono text-[10px] leading-tight tracking-[0.12em] text-foreground/60 dark:bg-white/5">
+            <div className="relative bg-black/4 px-4 py-1.5 font-mono text-[10px] leading-tight tracking-[0.12em] text-foreground/80 dark:bg-white/5">
               {mrz(person).map((l) => (
                 <div key={l} className="truncate">{l}</div>
               ))}
