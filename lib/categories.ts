@@ -12,6 +12,9 @@ export type CategoryId =
   | "vehicle"
   | "tax"
   | "employment"
+  | "visa"
+  | "bills"
+  | "legal"
   | "other";
 
 export interface Category {
@@ -136,6 +139,30 @@ export const CATEGORIES: Category[] = [
     gradient: "from-violet-500 to-indigo-600",
     accent: "text-violet-600 dark:text-violet-400",
     keywords: ["employment", "salary", "payslip", "appointment letter", "epf", "etf", "service letter"],
+  },
+  {
+    id: "visa",
+    label: "Visa & Travel",
+    emoji: "✈️",
+    gradient: "from-cyan-500 to-blue-600",
+    accent: "text-cyan-600 dark:text-cyan-400",
+    keywords: ["visa", "entry permit", "residence permit", "boarding pass", "e-ticket", "itinerary", "work permit"],
+  },
+  {
+    id: "bills",
+    label: "Bills & Utilities",
+    emoji: "💡",
+    gradient: "from-orange-400 to-amber-600",
+    accent: "text-orange-600 dark:text-orange-400",
+    keywords: ["electricity", "water bill", "ceb", "leco", "nwsdb", "telephone bill", "invoice", "receipt", "bill no", "dialog", "mobitel", "amount due"],
+  },
+  {
+    id: "legal",
+    label: "Legal",
+    emoji: "⚖️",
+    gradient: "from-stone-500 to-stone-700",
+    accent: "text-stone-600 dark:text-stone-300",
+    keywords: ["court", "affidavit", "power of attorney", "last will", "testament", "agreement", "notary", "attorney-at-law", "police report"],
   },
   {
     id: "other",

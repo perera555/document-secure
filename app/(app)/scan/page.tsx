@@ -20,6 +20,7 @@ import {
 import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
+import { autoSaveToComputer } from "@/lib/export";
 
 interface Page {
   id: string;
@@ -376,8 +377,9 @@ function Review({
       }
       const firstImage = pages.find((p) => isImage(p.type));
       const now = Date.now();
+      const docId = uid();
       await db.documents.add({
-        id: uid(),
+        id: docId,
         personId,
         category,
         title: title.trim() || getCategory(category).label,
@@ -392,6 +394,8 @@ function Review({
       });
       const inboxIds = pages.map((p) => p.inboxId).filter(Boolean) as string[];
       if (inboxIds.length) await db.inbox.bulkDelete(inboxIds);
+      // Also copy into "<computer folder>/<Person name>/<Folder>/" when set up.
+      void autoSaveToComputer(personId, docId);
       onSaved(personId, category);
     } finally {
       setSaving(false);

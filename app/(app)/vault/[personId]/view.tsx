@@ -7,8 +7,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, ChevronDown, Pencil, ScanLine, Trash2, Sparkles, Folder, Plus, FileText } from "lucide-react";
 import { DocTile } from "@/components/DocTile";
 import { Tilt3D } from "@/components/Tilt3D";
-import { Download } from "lucide-react";
-import { downloadDocument } from "@/lib/backup";
+import { FolderDown } from "lucide-react";
+import { downloadPersonZip } from "@/lib/export";
 import { db, deletePerson } from "@/lib/db";
 import { CATEGORIES } from "@/lib/categories";
 import { PERSON_FIELDS, collectDetails } from "@/lib/gather";
@@ -38,6 +38,7 @@ export default function PersonPage() {
   const [showCollected, setShowCollected] = useState(false);
   const [tab, setTab] = useState<string>("all");
   const [showDetails, setShowDetails] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   if (person === undefined || docs === undefined) {
     return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -87,11 +88,18 @@ export default function PersonPage() {
               {docs.length > 0 && (
                 <button
                   className="btn-ghost"
+                  disabled={zipping}
+                  title={`Saves “${person.fullName}.zip” with Medical, Passport… folders inside`}
                   onClick={async () => {
-                    for (const d of docs) await downloadDocument(d, person.fullName);
+                    setZipping(true);
+                    try {
+                      await downloadPersonZip(person.id);
+                    } finally {
+                      setZipping(false);
+                    }
                   }}
                 >
-                  <Download size={16} /> Download all
+                  <FolderDown size={16} /> {zipping ? "Preparing…" : "Save all (ZIP)"}
                 </button>
               )}
             </div>
@@ -133,7 +141,7 @@ export default function PersonPage() {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">
-            All documents <span className="text-base font-medium text-muted">({docs.length})</span>
+            {person.fullName}&apos;s documents <span className="text-base font-medium text-muted">({docs.length})</span>
           </h2>
           <Link href={`/scan?person=${person.id}${tab !== "all" ? `&category=${tab}` : ""}`} className="btn-primary">
             <Plus size={16} /> Add document
@@ -159,10 +167,30 @@ export default function PersonPage() {
             action={<Link href={`/scan?person=${person.id}`} className="btn-primary"><ScanLine size={18} /> Scan now</Link>}
           />
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {shownDocs.map((d) => (
-              <DocTile key={d.id} doc={d} ownerName={person.fullName} />
-            ))}
+          <div className="space-y-8">
+            {(tab === "all" ? used : used.filter((c) => c.id === tab)).map((c) => {
+              const list = shownDocs.filter((d) => d.category === c.id);
+              return (
+                <div key={c.id} className="animate-pop">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className={`grid h-10 w-10 place-items-center rounded-xl bg-linear-to-br ${c.gradient} text-xl shadow-lg`}>{c.emoji}</span>
+                    <div>
+                      <h3 className="font-bold leading-tight">{c.label}</h3>
+                      <p className="text-xs text-muted">{list.length} document{list.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <div className={`ml-2 h-px flex-1 bg-linear-to-r ${c.gradient} opacity-30`} />
+                    <Link href={`/scan?person=${person.id}&category=${c.id}`} className="btn-ghost px-3 py-1.5 text-xs">
+                      <Plus size={14} /> Add
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {list.map((d) => (
+                      <DocTile key={d.id} doc={d} ownerName={person.fullName} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
