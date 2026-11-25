@@ -23,6 +23,7 @@ import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
 import { toast } from "@/components/Toast";
 import { ScannerConnect } from "@/components/ScannerConnect";
+import { RequireLogin, useAdmin } from "@/components/AdminLock";
 import { BulkImport } from "@/components/BulkImport";
 import { DateSelect } from "@/components/DateSelect";
 import {
@@ -49,13 +50,17 @@ type Step = "collect" | "reading" | "review";
 
 export default function ScanPage() {
   return (
-    <ScanPageInner />
+    <RequireLogin>
+      <ScanPageInner />
+    </RequireLogin>
   );
 }
 
 function ScanPageInner() {
   const router = useRouter();
-  const people = useLiveQuery(() => db.people.toArray(), [], [] as Person[]);
+  const allPeople = useLiveQuery(() => db.people.toArray(), [], [] as Person[]);
+  const { isAdmin: adminUser, memberId, status: lockStatus, canSee } = useAdmin();
+  const people = allPeople.filter((p) => canSee(p.id));
   const inbox = useLiveQuery(() => db.inbox.orderBy("createdAt").toArray(), []);
   const [pages, setPages] = useState<Page[]>([]);
   const [selected, setSelected] = useState<string>();
@@ -139,6 +144,7 @@ function ScanPageInner() {
   const fromScanner = useRef(false);
   const tried = useRef(new Set<string>());
   useEffect(() => {
+    if (lockStatus === "loading") return;
     if (!autoFile || step !== "collect" || pages.length > 0 || !inbox?.length) return;
     const item = inbox.find((i) => !tried.current.has(i.id));
     if (!item) return;
@@ -154,7 +160,7 @@ function ScanPageInner() {
       await read([page]);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFile, step, pages.length, inbox]);
+  }, [autoFile, step, pages.length, inbox, lockStatus]);
 
   async function afterSave(pid: string, cat: CategoryId, docId: string, auto: boolean) {
     if (!fromScanner.current) {
@@ -194,7 +200,7 @@ function ScanPageInner() {
         finalBlob={finalBlob}
         people={people}
         result={result}
-        preset={preset}
+        preset={lockStatus === "member" && !preset.person ? { ...preset, person: memberId } : preset}
         autoFile={autoFile}
         onBack={() => {
           fromScanner.current = false;
@@ -252,7 +258,7 @@ function ScanPageInner() {
       <input ref={fileRef} hidden multiple type="file" accept="image/*,application/pdf" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
       <input ref={phoneCamRef} hidden type="file" accept="image/*" capture="environment" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
 
-      <BulkImport queued={inbox?.length ?? 0} />
+      <BulkImport queued={inbox?.length ?? 0} ownerName={lockStatus === "member" ? allPeople.find((p) => p.id === memberId)?.fullName : undefined} />
 
       <ScannerConnect people={people} />
 
@@ -459,7 +465,8 @@ function Review({
 }) {
   const ex = result.extraction;
   const match = findOwner(people, ex);
-  const initialOwner = preset.person ?? match?.person.id ?? (ex.ownerName ? "new" : people[0]?.id ?? "new");
+  const { isAdmin: canCreate } = useAdmin();
+  const initialOwner = preset.person ?? match?.person.id ?? (ex.ownerName && canCreate ? "new" : people[0]?.id ?? "new");
 
   const [owner, setOwner] = useState<string>(initialOwner);
   const [newName, setNewName] = useState(ex.ownerName);
@@ -594,13 +601,13 @@ function Review({
                   {owner === p.id && <Check size={18} className="text-indigo-500" />}
                 </button>
               ))}
-              <div className={`rounded-xl border p-2.5 ${owner === "new" ? "border-indigo-500 bg-indigo-500/10" : "border-border"}`}>
+              {canCreate && <div className={`rounded-xl border p-2.5 ${owner === "new" ? "border-indigo-500 bg-indigo-500/10" : "border-border"}`}>
                 <button onClick={() => setOwner("new")} className="flex w-full items-center gap-3 text-left">
                   <span className="grid h-10 w-10 place-items-center rounded-xl bg-black/5 dark:bg-white/10"><UserPlus size={18} /></span>
                   <span className="text-sm font-semibold">New person</span>
                 </button>
                 {owner === "new" && <input className="input mt-2" placeholder="Full name, e.g. P R Perera" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />}
-              </div>
+              </div>}
             </div>
             {fillList.length > 0 && (
               <label className="mt-4 flex gap-3 rounded-xl bg-indigo-500/5 p-3 text-sm">

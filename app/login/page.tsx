@@ -63,14 +63,15 @@ export default function LoginPage() {
       {back}
       <LockScreen
         config={config}
-        title="Admin login"
-        onAdmin={(name, id) => {
-          writeSession({ role: "admin", last: Date.now(), name, adminId: id });
-          router.push("/vault");
-        }}
-        onViewer={() => {
-          writeSession({ role: "viewer", last: Date.now() });
-          router.push("/vault");
+        title="Log in"
+        onLogin={(r, name) => {
+          if (r.role === "admin") {
+            writeSession({ role: "admin", last: Date.now(), name: r.name, adminId: r.id });
+            router.push("/admin"); // admin PIN → straight to the Admin dashboard
+          } else {
+            writeSession({ role: "member", last: Date.now(), personId: r.personId, name });
+            router.push(`/vault/${r.personId}`);
+          }
         }}
       />
     </div>

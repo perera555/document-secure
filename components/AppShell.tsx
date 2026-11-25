@@ -38,12 +38,13 @@ function ThemeToggle() {
 }
 
 function LockControls() {
-  const { config, status, lockNow } = useAdmin();
-  if (status === "admin") {
+  const { config, status, lockNow, adminName } = useAdmin();
+  if (status === "admin" || status === "member") {
     return (
       <>
         <span className="hidden items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:flex dark:text-emerald-300">
-          <ShieldCheck size={14} /> Admin{config?.adminName ? `: ${config.adminName}` : ""}
+          <ShieldCheck size={14} />
+          {status === "admin" ? `Admin${config?.adminName ? `: ${config.adminName}` : ""}` : adminName ?? "My documents"}
         </span>
         <button
           onClick={lockNow}
@@ -57,20 +58,14 @@ function LockControls() {
       </>
     );
   }
+  if (status === "loading") return null;
   return (
-    <>
-      {status === "viewer" && (
-        <span className="hidden items-center gap-1.5 rounded-xl bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-700 sm:flex dark:text-sky-300">
-          <Eye size={14} /> View only
-        </span>
-      )}
-      <Link
-        href="/login"
-        className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300"
-      >
-        <KeyRound size={16} /> Admin login
-      </Link>
-    </>
+    <Link
+      href="/login"
+      className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300"
+    >
+      <KeyRound size={16} /> Log in
+    </Link>
   );
 }
 
@@ -85,10 +80,14 @@ function TopNav({ highlight = true }: { highlight?: boolean }) {
 function TopNavActive() {
   return <TopNavLinks active={useActive()} />;
 }
+const ADMIN_ONLY = ["/settings", "/admin"];
+
 function TopNavLinks({ active }: { active: (href: string) => boolean }) {
+  const { isAdmin } = useAdmin();
+  const items = DESKTOP_NAV.filter((n) => isAdmin || !ADMIN_ONLY.includes(n.href));
   return (
     <nav className="ml-6 hidden items-center gap-1 md:flex">
-      {DESKTOP_NAV.map((n) => (
+      {items.map((n) => (
         <Link
           key={n.href}
           href={n.href}
@@ -107,9 +106,11 @@ function BottomNavActive() {
   return <BottomNavLinks active={useActive()} />;
 }
 function BottomNavLinks({ active }: { active: (href: string) => boolean }) {
+  const { isAdmin } = useAdmin();
+  const items = NAV.filter((n) => isAdmin || !ADMIN_ONLY.includes(n.href));
   return (
-    <div className="mx-auto grid max-w-md grid-cols-3">
-      {NAV.map((n) => {
+    <div className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map((n) => {
         const isScan = n.href === "/scan";
         return (
           <Link

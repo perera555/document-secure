@@ -8,7 +8,7 @@ import { ArrowLeft, ChevronDown, Pencil, ScanLine, Trash2, Sparkles, Folder, Plu
 import { DocTile } from "@/components/DocTile";
 import { Tilt3D } from "@/components/Tilt3D";
 import { toast } from "@/components/Toast";
-import { useAdmin } from "@/components/AdminLock";
+import { NotYours, useAdmin } from "@/components/AdminLock";
 import { FolderDown } from "lucide-react";
 import { downloadPersonZip } from "@/lib/export";
 import { db, deletePerson } from "@/lib/db";
@@ -41,7 +41,7 @@ export default function PersonPage() {
   const [tab, setTab] = useState<string>("all");
   const [showDetails, setShowDetails] = useState(false);
   const [zipping, setZipping] = useState(false);
-  const { isAdmin } = useAdmin();
+  const { isAdmin, canSee } = useAdmin();
 
   if (person === undefined || docs === undefined) {
     return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -49,6 +49,7 @@ export default function PersonPage() {
   if (!person) {
     return <Empty icon={<Folder size={30} />} title="Person not found" text="This person may have been deleted." action={<Link href="/vault" className="btn-primary">Back to people</Link>} />;
   }
+  if (!canSee(person.id)) return <NotYours personId={person.id} personName={person.fullName} />;
 
   const counts = new Map<string, number>();
   for (const d of docs) counts.set(d.category, (counts.get(d.category) ?? 0) + 1);

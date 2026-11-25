@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
 import { Empty } from "@/components/ui";
 import { DocTile } from "@/components/DocTile";
-import { useAdmin } from "@/components/AdminLock";
+import { NotYours, useAdmin } from "@/components/AdminLock";
 
 export default function FolderPage() {
   const { personId, category } = useParams<{ personId: string; category: string }>();
@@ -20,7 +20,7 @@ export default function FolderPage() {
     [personId, category],
   );
   const c = getCategory(category);
-  const { isAdmin } = useAdmin();
+  const { canSee } = useAdmin();
   const [zipping, setZipping] = useState(false);
   const [saved, setSaved] = useState<{ id: string; auto: boolean } | null>(null);
   useEffect(() => {
@@ -31,6 +31,7 @@ export default function FolderPage() {
   const savedDoc = saved ? docs?.find((d) => d.id === saved.id) : undefined;
 
   if (person === undefined || docs === undefined) return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
+  if (!canSee(personId)) return <NotYours personId={personId} personName={person?.fullName} />;
 
   return (
     <div className="space-y-6">

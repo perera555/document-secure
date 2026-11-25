@@ -131,12 +131,56 @@ export async function serverLogin(pin: string): Promise<{ ok: boolean; name?: st
   }
 }
 
-/** Device check first (works offline), then the server's main admin PIN. */
-export async function loginWithPin(pin: string): Promise<{ ok: boolean; name?: string; id?: string; error?: string }> {
+/* ---- Personal PINs: a family member's PIN shows only their own card and documents ---- */
+
+export interface MemberPin {
+  personId: string;
+  salt: string;
+  hash: string;
+  createdAt: number;
+}
+const MEMBERS = "memberPins";
+
+export async function getMemberPins(): Promise<MemberPin[]> {
+  return (await getSetting<MemberPin[] | null>(MEMBERS, null)) ?? [];
+}
+
+export async function setMemberPin(personId: string, pin: string) {
+  const salt = randomB64(16);
+  const entry: MemberPin = { personId, salt, hash: await derive(pin, salt), createdAt: Date.now() };
+  const list = (await getMemberPins()).filter((m) => m.personId !== personId);
+  await setSetting(MEMBERS, [...list, entry]);
+}
+
+export async function removeMemberPin(personId: string) {
+  await setSetting(MEMBERS, (await getMemberPins()).filter((m) => m.personId !== personId));
+}
+
+async function findMemberByPin(pin: string): Promise<MemberPin | null> {
+  for (const m of await getMemberPins()) if (same(await derive(pin, m.salt), m.hash)) return m;
+  return null;
+}
+
+/** True when this PIN is already used by an admin or another person (PINs must be unique). */
+export async function pinInUse(pin: string, exceptPersonId?: string) {
+  if (await findAdminByPin(pin)) return true;
+  const m = await findMemberByPin(pin);
+  return !!m && m.personId !== exceptPersonId;
+}
+
+export type LoginResult =
+  | { ok: true; role: "admin"; name?: string; id?: string }
+  | { ok: true; role: "member"; personId: string }
+  | { ok: false; error?: string };
+
+/** Device checks first (work offline): admins, then personal PINs; then the server's main admin PIN. */
+export async function loginWithPin(pin: string): Promise<LoginResult> {
   const local = await findAdminByPin(pin);
-  if (local) return { ok: true, name: local.name, id: local.id };
+  if (local) return { ok: true, role: "admin", name: local.name, id: local.id };
+  const member = await findMemberByPin(pin);
+  if (member) return { ok: true, role: "member", personId: member.personId };
   const remote = await serverLogin(pin);
-  return remote.ok ? { ok: true, name: remote.name, id: "main" } : { ok: false, error: remote.error };
+  return remote.ok ? { ok: true, role: "admin", name: remote.name, id: "main" } : { ok: false, error: remote.error };
 }
 
 export async function updateLockOptions(patch: Partial<Pick<LockConfig, "autoLockMinutes" | "allowViewOnly">>) {
@@ -151,7 +195,7 @@ export async function removeLock() {
 /* ---- Unlock session (this browser tab; survives reloads, not closing the browser) ---- */
 
 const SESSION = "docsecure-session";
-export type Session = { role: "admin" | "viewer"; last: number; adminId?: string; name?: string };
+export type Session = { role: "admin" | "member"; last: number; adminId?: string; name?: string; personId?: string };
 
 export function readSession(): Session | null {
   try {

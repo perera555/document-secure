@@ -9,7 +9,10 @@ import { PERSON_FIELDS } from "@/lib/gather";
 import { PersonForm } from "@/components/PersonForm";
 import { QuickAddCard } from "@/components/QuickAddCard";
 import { PersonIdCard } from "@/components/PersonIdCard";
-import { useAdmin } from "@/components/AdminLock";
+import { PinGate, useAdmin } from "@/components/AdminLock";
+import { LockedPersonCard } from "@/components/LockedPersonCard";
+import { Modal } from "@/components/ui";
+import { useRouter } from "next/navigation";
 import { AutoSaveBar } from "@/components/AutoSaveBar";
 
 export default function VaultPage() {
@@ -17,7 +20,12 @@ export default function VaultPage() {
   const docs = useLiveQuery(() => db.documents.toArray(), []);
   const [form, setForm] = useState<{ open: boolean; person?: Person }>({ open: false });
   const [q, setQ] = useState("");
-  const { isAdmin } = useAdmin();
+  const { isAdmin, canSee } = useAdmin();
+  const router = useRouter();
+  const [pinFor, setPinFor] = useState<Person | null>(null);
+  // Everyone's card is shown. Details and documents open only with that person's PIN (or the admin PIN).
+  const visible = people ?? [];
+  const visibleDocs = (docs ?? []).filter((d) => canSee(d.personId));
 
   const byPerson = useMemo(() => {
     const m = new Map<string, VaultDocument[]>();
@@ -26,7 +34,7 @@ export default function VaultPage() {
   }, [docs]);
 
   const query = q.trim().toLowerCase();
-  const shown = (people ?? []).filter(
+  const shown = visible.filter(
     (p) =>
       !query ||
       [p.fullName, p.relationship, ...PERSON_FIELDS.map((f) => p[f.key]), ...(p.extraFields ?? []).map((f) => f.value)]
@@ -47,25 +55,28 @@ export default function VaultPage() {
             <p className="text-sm font-medium text-white/80">Family document vault</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">My People</h1>
             <p className="mt-2 text-sm text-white/80">
-              {people.length} {people.length === 1 ? "person" : "people"} · {docs.length} document{docs.length === 1 ? "" : "s"} · stored privately on this device
+              {visible.length} {visible.length === 1 ? "person" : "people"}{isAdmin ? ` · ${visibleDocs.length} document${visibleDocs.length === 1 ? "" : "s"}` : ""} · tap a card and enter the PIN to open documents
             </p>
           </div>
-          {/* Always visible. Without the admin login they lead to the PIN login first. */}
           <div className="flex flex-wrap gap-2">
-            <button className="btn bg-white text-indigo-700 shadow-lg hover:bg-indigo-50" onClick={() => setForm({ open: true })}>
-              <Plus size={18} /> Add person
-            </button>
+            {isAdmin && (
+              <button className="btn bg-white text-indigo-700 shadow-lg hover:bg-indigo-50" onClick={() => setForm({ open: true })}>
+                <Plus size={18} /> Add person
+              </button>
+            )}
             <Link href="/scan" className="btn bg-white/15 text-white ring-1 ring-white/30 backdrop-blur hover:bg-white/25">
               <ScanLine size={18} /> Scan document
             </Link>
-            <Link href={isAdmin ? "/admin" : "/login"} className="btn bg-white/15 text-white ring-1 ring-white/30 backdrop-blur hover:bg-white/25">
-              <LayoutDashboard size={18} /> Admin panel
-            </Link>
+            {isAdmin && (
+              <Link href="/admin" className="btn bg-white/15 text-white ring-1 ring-white/30 backdrop-blur hover:bg-white/25">
+                <LayoutDashboard size={18} /> Admin panel
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
-      {people.length > 0 && (
+      {isAdmin && visible.length > 0 && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={18} />
           <input className="input h-12 pl-11 text-base" placeholder="Search by name, ID number, mobile…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -81,15 +92,19 @@ export default function VaultPage() {
         <section className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((p, i) => (
             <div key={p.id} className="card-in" style={{ animationDelay: `${Math.min(i, 8) * 70}ms` }}>
-              <PersonIdCard person={p} docs={byPerson.get(p.id) ?? []} onEdit={() => setForm({ open: true, person: p })} />
+              {canSee(p.id) ? (
+                <PersonIdCard person={p} docs={byPerson.get(p.id) ?? []} onEdit={() => setForm({ open: true, person: p })} />
+              ) : (
+                <LockedPersonCard person={p} onOpen={() => setPinFor(p)} />
+              )}
             </div>
           ))}
-          {!query && (
+          {!query && isAdmin && (
             <div key="quick-add" className="card-in" style={{ animationDelay: `${Math.min(shown.length, 8) * 70}ms` }}>
-              <QuickAddCard count={people.length} onFullForm={() => setForm({ open: true })} />
+              <QuickAddCard count={visible.length} onFullForm={() => setForm({ open: true })} />
             </div>
           )}
-          {people.length === 0 && (
+          {visible.length === 0 && isAdmin && (
             <div key="first-hint" className="card-in flex flex-col justify-center gap-3 p-2 lg:col-span-2" style={{ animationDelay: "120ms" }}>
               <span className="grid h-14 w-14 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Users size={28} /></span>
               <h2 className="text-2xl font-bold">Add your first person</h2>
@@ -103,6 +118,19 @@ export default function VaultPage() {
       )}
 
       <PersonForm open={form.open} person={form.person} onClose={() => setForm({ open: false })} />
+      <Modal open={!!pinFor} onClose={() => setPinFor(null)} title={pinFor ? `Open ${pinFor.fullName}` : "PIN"}>
+        {pinFor && (
+          <PinGate
+            forPersonId={pinFor.id}
+            forName={pinFor.fullName}
+            onDone={() => {
+              const id = pinFor.id;
+              setPinFor(null);
+              router.push(`/vault/${id}`);
+            }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

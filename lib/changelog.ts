@@ -6,7 +6,8 @@ export const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     items: [
       "Fixed: people added with the full form now always appear",
       "Scan with printer: search scanners, choose yours (e.g. HP DeskJet), press Scan — in original colour, filed automatically",
-      "Anyone can add people and save documents; updating and deleting need the admin PIN",
+      "Privacy: a PIN is needed to open DocSecure; each person's own PIN shows only their documents",
+      "Admin panel › People › Set PIN: only the admin creates personal PINs",
       "Admin panel: dashboard of all people and documents with edit, delete and download",
       "Add more admins, each with their own PIN",
       "New 4-step Add person form with a live 3D ID card",

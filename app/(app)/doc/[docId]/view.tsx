@@ -13,7 +13,7 @@ import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
 import { isImage } from "@/lib/image";
 import { downloadDocument, printDocument } from "@/lib/backup";
 import { autoSaveToComputer, savePersonToComputer } from "@/lib/export";
-import { useAdmin } from "@/components/AdminLock";
+import { NotYours, useAdmin } from "@/components/AdminLock";
 import { DateSelect } from "@/components/DateSelect";
 import { BlobImage, Empty, expiryStatus, formatDate, useObjectUrl } from "@/components/ui";
 
@@ -26,13 +26,15 @@ export default function DocPage() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState(false);
   const [full, setFull] = useState(false);
-  const { isAdmin } = useAdmin();
+  const { canSee, canEdit } = useAdmin();
+  const isAdmin = canEdit(doc?.personId); // owner or admin may edit / remove
   useEffect(() => {
     if (isAdmin && new URLSearchParams(window.location.search).get("edit")) setEditing(true);
   }, []);
 
   if (doc === undefined) return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
   if (!doc) return <Empty icon={<X size={28} />} title="Document not found" text="It may have been deleted." action={<Link href="/vault" className="btn-primary">Back</Link>} />;
+  if (!canSee(doc.personId)) return <NotYours personId={doc.personId} personName={person?.fullName} />;
 
   const c = getCategory(doc.category);
   const pg = doc.pages[Math.min(page, doc.pages.length - 1)];

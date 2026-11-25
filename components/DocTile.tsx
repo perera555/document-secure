@@ -15,7 +15,8 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
   const router = useRouter();
   const c = getCategory(doc.category);
   const st = expiryStatus(doc.expiryDate);
-  const { isAdmin } = useAdmin();
+  const { canEdit } = useAdmin();
+  const isAdmin = canEdit(doc.personId); // owner or admin may edit / remove
 
   const act = (fn: () => void) => (e: React.MouseEvent) => {
     e.preventDefault();

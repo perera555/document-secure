@@ -10,7 +10,7 @@ const USER: { title: string; steps: Step[] }[] = [
   {
     title: "Open the app",
     steps: [
-      { t: "Open DocSecure", d: "Go to document-secure.vercel.app and press “Go to My People”, or open the installed app from your home screen / Start menu." },
+      { t: "Open DocSecure", d: "Go to document-secure.vercel.app and press “Go to My People”, or open the installed app. Type your PIN on the keypad. Your own PIN shows only your documents; ask the admin for your PIN." },
       { t: "Install it (once)", d: "On the home page press “Install”. On iPhone: Safari › Share › Add to Home Screen. On Android/Windows/Mac: the Install button or the install icon in the address bar." },
     ],
   },
@@ -23,11 +23,9 @@ const USER: { title: string; steps: Step[] }[] = [
     ],
   },
   {
-    title: "Add people and documents (no login needed)",
+    title: "Add your documents",
     steps: [
-      { t: "Add a person", d: "My People › “+ Add person”, or fill the “Add person” card. The full form has 4 short steps: Photo & name › Birth & ID › Contact › Certificates, with a live 3D card." },
-      { t: "Fill from ID card", d: "In the form press “Fill from ID card” and take a photo of the ID card, passport or birth certificate. Empty fields are filled for you." },
-      { t: "Save a document", d: "Press “Scan document”: use the camera, upload photos/PDF, or the printer-scanner folder. Several pages become one document." },
+                  { t: "Save a document", d: "Press “Scan document”: use the camera, upload photos/PDF, or the printer-scanner folder. Several pages become one document." },
       { t: "Scan from the printer-scanner (HP DeskJet)", d: "On Windows, double-click “DocSecure Scan” on the Desktop (download it on the Scan page). Type whose document and what it is, e.g. “Shanthi Mallika” and “NIC”. The page is scanned at 300 DPI. Keep DocSecure open on the Scan page with “File automatically” on, and the scanner folder chosen once — it files every scan by itself." },
       { t: "Automatic filing", d: "DocSecure reads the document and its file name (e.g. “Shanthi Mallika NIC.jpg”), finds the person and folder, names it and saves it. If unsure, it asks you to choose." },
     ],
@@ -47,14 +45,16 @@ const ADMIN: { title: string; steps: Step[] }[] = [
   {
     title: "Log in",
     steps: [
-      { t: "Admin login", d: "Only needed to update, delete, open the Admin panel or Settings. Press “Admin login” (top of the page) and type the admin PIN on the keypad." },
+      { t: "Admin login", d: "Type the admin PIN on the keypad when DocSecure opens. The admin sees everyone and can add people, give PINs, update and delete. Press “Log out” at the top when you finish." },
       { t: "Log out", d: "Press “Log out” when you finish. The app also logs out by itself after a few minutes without use (Admin › Log out automatically after)." },
       { t: "First time on a new device", d: "The first login on each phone or computer needs internet. After that the PIN also works offline." },
     ],
   },
   {
-    title: "Update and delete (admin only)",
+    title: "People, PINs, update and delete (admin)",
     steps: [
+      { t: "Add a person", d: "My People › “+ Add person”. The form has 4 short steps: Photo & name › Birth & ID › Contact › Certificates, with a live 3D card. “Fill from ID card” fills it from a photo." },
+      { t: "Give a person their own PIN", d: "Admin panel › People › “Set PIN”. With that PIN the person sees only their own card and documents — nobody else's. Change or remove it there too. Only the admin can create PINs." },
       { t: "Update a person", d: "Log in, then press ✏️ on a person's card (or in Admin panel › People) and change the details." },
       { t: "Update a document", d: "Open the document and press “Edit”, or use Admin panel › Documents › ✏️. You can change the name, folder, person, dates and details." },
       { t: "Delete", d: "Press 🗑 on a card, a document or in the Admin panel. You are asked to confirm first; deleting cannot be undone." },

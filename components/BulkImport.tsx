@@ -18,7 +18,7 @@ function typeOf(f: File) {
  * them one after another ("File automatically"). With a folder, the folder names
  * help: "P R Perera/Medical/blood test.pdf" → P R Perera › Medical.
  */
-export function BulkImport({ queued }: { queued: number }) {
+export function BulkImport({ queued, ownerName }: { queued: number; ownerName?: string }) {
   const filesRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -36,7 +36,8 @@ export function BulkImport({ queued }: { queued: number }) {
         files.map((f, i) => ({
           id: uid(),
           // Keep the folder path in the name: it tells DocSecure whose document it is.
-          name: (f.webkitRelativePath || f.name).replace(/\\/g, "/"),
+          // With a personal PIN, every file belongs to that person.
+          name: (ownerName ? `${ownerName}/` : "") + (f.webkitRelativePath || f.name).replace(/\\/g, "/"),
           blob: f,
           type: typeOf(f),
           createdAt: now + i,

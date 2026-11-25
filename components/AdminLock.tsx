@@ -1,50 +1,84 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Eye, KeyRound, Loader2, Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 import {
-  clearFailures, getLockConfig, lockoutRemainingMs, loginWithPin, readSession, recordFailure, writeSession, type LockConfig,
+  clearFailures, getLockConfig, getMemberPins, lockoutRemainingMs, loginWithPin, readSession, recordFailure, writeSession, type LockConfig, type LoginResult,
 } from "@/lib/lock";
 
-type Status = "loading" | "open" | "locked" | "admin" | "viewer";
+/**
+ * Who is using the app:
+ *  - "admin":  admin PIN — sees and manages everyone.
+ *  - "member": a person's own PIN — sees and manages only their own documents.
+ *  - "locked": nobody logged in — the People page shows the cards (photo and name only);
+ *              tapping a card asks for that person's PIN. Everything else asks for a PIN.
+ */
+type Status = "loading" | "locked" | "admin" | "member";
+type OkLogin = Extract<LoginResult, { ok: true }>;
 
 interface AdminCtx {
-  /** True only when an admin is logged in: may add, edit, update and delete. */
   isAdmin: boolean;
   status: Status;
   config: LockConfig | null;
-  /** Name of the logged-in admin. */
+  /** Name shown in the header. */
   adminName?: string;
+  /** The person whose PIN is in use (member). */
+  memberId?: string;
+  /** May the current user see this person's data? (No personal PIN set → open to everyone.) */
+  canSee: (personId?: string) => boolean;
+  /** May the current user update / remove this person's documents? (Admin, or the person themselves.) */
+  canEdit: (personId?: string) => boolean;
+  /** Start a session after a successful PIN. */
+  login: (r: OkLogin, name?: string) => Promise<void>;
   lockNow: () => void;
   refresh: () => Promise<void>;
 }
 
-const Ctx = createContext<AdminCtx>({ isAdmin: false, status: "open", config: null, lockNow: () => {}, refresh: async () => {} });
+const Ctx = createContext<AdminCtx>({
+  isAdmin: false,
+  status: "loading",
+  config: null,
+  canSee: () => false,
+  canEdit: () => false,
+  login: async () => {},
+  lockNow: () => {},
+  refresh: async () => {},
+});
 
 export const useAdmin = () => useContext(Ctx);
 
 const ACTIVITY = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+const DEFAULT_AUTO_LOCK_MIN = 5;
 
 export function AdminLockProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
   const [config, setConfig] = useState<LockConfig | null>(null);
   const [adminName, setAdminName] = useState<string>();
+  const [memberId, setMemberId] = useState<string>();
+  // People who have their own PIN: only they (or the admin) may open them.
+  const [protectedIds, setProtectedIds] = useState<Set<string>>(new Set());
   const lastActivity = useRef(0); // set in the browser; reading the clock during prerender isn't allowed
 
   const refresh = useCallback(async () => {
     const c = await getLockConfig();
     setConfig(c);
+    setProtectedIds(new Set((await getMemberPins()).map((m) => m.personId)));
     const s = readSession();
-    const expired = s && c && c.autoLockMinutes > 0 && Date.now() - s.last > c.autoLockMinutes * 60_000;
+    const limit = (c?.autoLockMinutes ?? DEFAULT_AUTO_LOCK_MIN) * 60_000;
+    const expired = s && limit > 0 && Date.now() - s.last > limit;
     if (s && !expired && s.role === "admin") {
       lastActivity.current = Date.now();
       setAdminName(s.name);
+      setMemberId(undefined);
       setStatus("admin");
+    } else if (s && !expired && s.role === "member" && s.personId) {
+      lastActivity.current = Date.now();
+      setAdminName(s.name);
+      setMemberId(s.personId);
+      setStatus("member");
     } else {
-      // Everyone may open the app and look at people and documents.
-      // Adding, editing, deleting and scanning need the admin PIN (/login).
       writeSession(null);
-      setStatus("open");
+      setStatus("locked");
     }
   }, []);
 
@@ -52,17 +86,35 @@ export function AdminLockProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  /** Log the admin out; the app stays open for viewing. */
+  /** Log out: everything asks for a PIN again. */
   const lockNow = useCallback(() => {
     writeSession(null);
     setAdminName(undefined);
-    setStatus("open");
+    setMemberId(undefined);
+    setStatus("locked");
   }, []);
 
-  // Auto-lock after inactivity (also when the app sits in the background).
+  const login = useCallback(async (r: OkLogin, name?: string) => {
+    lastActivity.current = Date.now();
+    if (r.role === "admin") {
+      writeSession({ role: "admin", last: lastActivity.current, name: r.name, adminId: r.id });
+      setAdminName(r.name);
+      setMemberId(undefined);
+    } else {
+      writeSession({ role: "member", last: lastActivity.current, personId: r.personId, name });
+      setAdminName(name);
+      setMemberId(r.personId);
+    }
+    setConfig(await getLockConfig());
+    setStatus(r.role);
+  }, []);
+
+  // Log out automatically after inactivity (also when the app sits in the background).
   useEffect(() => {
-    if (!config || config.autoLockMinutes <= 0 || status !== "admin") return;
-    const limit = config.autoLockMinutes * 60_000;
+    if (status !== "admin" && status !== "member") return;
+    const minutes = config?.autoLockMinutes ?? DEFAULT_AUTO_LOCK_MIN;
+    if (minutes <= 0) return;
+    const limit = minutes * 60_000;
     const touch = () => {
       lastActivity.current = Date.now();
       const s = readSession();
@@ -83,26 +135,39 @@ export function AdminLockProvider({ children }: { children: ReactNode }) {
     };
   }, [config, status, lockNow]);
 
-  // Pages are open to everyone, so they always render right away (Next.js also needs every
-  // page segment rendered). Admin-only buttons appear once the admin login is confirmed.
+  // Pages always render (Next.js validates every page segment); each page asks for a PIN
+  // where needed. While checking the session the page is hidden and shows a spinner.
+  const ready = status !== "loading";
+  const canEdit = (personId?: string) => status === "admin" || (status === "member" && !!personId && personId === memberId);
+  const canSee = (personId?: string) => canEdit(personId) || (status !== "loading" && !!personId && !protectedIds.has(personId));
   return (
-    <Ctx.Provider value={{ isAdmin: status === "admin", status, config, adminName, lockNow, refresh }}>
-      {children}
+    <Ctx.Provider value={{ isAdmin: status === "admin", status, config, adminName, memberId, canSee, canEdit, login, lockNow, refresh }}>
+      {!ready && (
+        <div className="grid min-h-dvh place-items-center">
+          <Loader2 className="animate-spin text-indigo-500" />
+        </div>
+      )}
+      <div hidden={!ready}>{children}</div>
     </Ctx.Provider>
   );
 }
 
-/** Full-screen PIN login. Used by the lock and by the /login page. */
-export function LockScreen({
-  config,
-  onAdmin,
-  onViewer,
-  title = "DocSecure is locked",
+/**
+ * PIN keypad. `forPersonId`: only that person's own PIN (or the admin PIN) is accepted.
+ * `adminOnly`: only an admin PIN is accepted.
+ */
+export function PinPad({
+  onLogin,
+  forPersonId,
+  forName,
+  adminOnly,
+  dark = false,
 }: {
-  config: LockConfig | null;
-  onAdmin: (name?: string, id?: string) => void;
-  onViewer?: () => void;
-  title?: string;
+  onLogin: (r: OkLogin, name?: string) => void;
+  forPersonId?: string;
+  forName?: string;
+  adminOnly?: boolean;
+  dark?: boolean;
 }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -117,105 +182,174 @@ export function LockScreen({
     setError("");
     try {
       const r = await loginWithPin(pin);
-      if (r.ok) {
-        clearFailures();
-        onAdmin(r.name, r.id);
-      } else {
+      if (!r.ok) {
         if (r.error !== "offline" && r.error !== "not-configured") recordFailure();
         setError(
           r.error === "offline"
-            ? "Wrong PIN, or you are offline. The first login on a device needs internet."
+            ? "Wrong PIN, or you are offline. The first admin login on a device needs internet."
             : r.error === "too-many"
               ? "Too many tries. Please wait a few minutes."
-              : r.error === "not-configured" && !config
-                ? "No admin PIN has been set up yet."
-                : "Wrong PIN.",
+              : "Wrong PIN.",
         );
         setPin("");
+        return;
       }
+      if (adminOnly && r.role !== "admin") {
+        setError("This needs the admin PIN.");
+        setPin("");
+        return;
+      }
+      if (forPersonId && r.role === "member" && r.personId !== forPersonId) {
+        recordFailure();
+        setError(`That PIN is not for ${forName ?? "this person"}.`);
+        setPin("");
+        return;
+      }
+      clearFailures();
+      let name: string | undefined;
+      if (r.role === "member") {
+        const { db } = await import("@/lib/db");
+        name = (await db.people.get(r.personId))?.fullName;
+      }
+      onLogin(r, name);
     } finally {
       setBusy(false);
     }
   }
 
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "✓"];
+  const field = dark
+    ? "border-white/15 bg-black/30 text-white focus:border-indigo-400"
+    : "border-border bg-background text-foreground focus:border-indigo-500";
+  const key = dark ? "border-white/10 bg-white/10 text-white hover:bg-white/20" : "border-border bg-black/4 hover:bg-black/8 dark:bg-white/6 dark:hover:bg-white/12";
 
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <input
+        autoFocus
+        type="password"
+        inputMode="numeric"
+        autoComplete="current-password"
+        maxLength={12}
+        className={`w-full rounded-xl border px-4 py-3 text-center text-3xl tracking-[0.5em] outline-none focus:ring-2 focus:ring-indigo-400/30 ${field}`}
+        placeholder="• • • •"
+        value={pin}
+        onChange={(e) => {
+          setError("");
+          setPin(e.target.value.replace(/\D/g, ""));
+        }}
+        aria-label="PIN"
+      />
+      <div className="grid grid-cols-3 gap-2.5 pt-1">
+        {keys.map((k) =>
+          k === "✓" ? (
+            <button key={k} type="submit" disabled={busy} aria-label="Log in" className="grid h-14 place-items-center rounded-2xl bg-linear-to-br from-indigo-500 to-sky-500 text-2xl font-bold text-white shadow-lg shadow-indigo-500/30 active:scale-95">
+              {busy ? <Loader2 className="animate-spin" size={22} /> : "✓"}
+            </button>
+          ) : (
+            <button
+              key={k}
+              type="button"
+              aria-label={k === "⌫" ? "Delete" : k}
+              onClick={() => {
+                setError("");
+                setPin((p) => (k === "⌫" ? p.slice(0, -1) : (p + k).slice(0, 12)));
+              }}
+              className={`h-14 rounded-2xl border text-2xl font-semibold transition active:scale-95 ${key}`}
+            >
+              {k}
+            </button>
+          ),
+        )}
+      </div>
+      {error && <p className={`text-center text-sm font-medium ${dark ? "text-rose-300" : "text-rose-600"}`}>{error}</p>}
+    </form>
+  );
+}
+
+/** Full-screen PIN page (used by /login). */
+export function LockScreen({ onLogin, title = "Enter your PIN" }: { config?: LockConfig | null; onLogin: (r: OkLogin, name?: string) => void; title?: string }) {
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-[#05060f] px-4 text-slate-100" style={{ backgroundColor: "#05060f" }}>
       <div className="aurora pointer-events-none absolute -left-32 -top-32 h-[480px] w-[480px] rounded-full bg-indigo-600/35 blur-[110px]" />
       <div className="aurora-slow pointer-events-none absolute -bottom-32 -right-32 h-[480px] w-[480px] rounded-full bg-sky-500/25 blur-[110px]" />
-
       <div className="animate-pop relative w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-7 shadow-2xl backdrop-blur-xl">
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-linear-to-br from-indigo-500 to-sky-500 shadow-lg shadow-indigo-500/40">
           <Lock size={28} />
         </div>
         <h1 className="mt-5 text-center text-2xl font-bold text-white">{title}</h1>
-        <p className="mt-1 text-center text-sm text-slate-300">
-          {config?.adminName ? `Welcome back, ${config.adminName}. ` : ""}Enter your admin PIN
-        </p>
-
-        <form onSubmit={submit} className="mt-5 space-y-3">
-          <input
-            autoFocus
-            type="password"
-            inputMode="numeric"
-            autoComplete="current-password"
-            maxLength={12}
-            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-center text-3xl tracking-[0.5em] text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30"
-            placeholder="• • • •"
-            value={pin}
-            onChange={(e) => {
-              setError("");
-              setPin(e.target.value.replace(/\D/g, ""));
-            }}
-            aria-label="Admin PIN"
-          />
-          <div className="grid grid-cols-3 gap-2.5 pt-1">
-            {keys.map((k) =>
-              k === "✓" ? (
-                <button key={k} type="submit" disabled={busy} aria-label="Log in" className="grid h-14 place-items-center rounded-2xl bg-linear-to-br from-indigo-500 to-sky-500 text-2xl font-bold text-white shadow-lg shadow-indigo-500/30 active:scale-95">
-                  {busy ? <Loader2 className="animate-spin" size={22} /> : "✓"}
-                </button>
-              ) : (
-                <button
-                  key={k}
-                  type="button"
-                  aria-label={k === "⌫" ? "Delete" : k}
-                  onClick={() => {
-                    setError("");
-                    setPin((p) => (k === "⌫" ? p.slice(0, -1) : (p + k).slice(0, 12)));
-                  }}
-                  className="h-14 rounded-2xl border border-white/10 bg-white/10 text-2xl font-semibold text-white transition hover:bg-white/20 active:scale-95"
-                >
-                  {k}
-                </button>
-              ),
-            )}
-          </div>
-          {error && <p className="text-center text-sm font-medium text-rose-300">{error}</p>}
-        </form>
-
-        {config?.allowViewOnly && onViewer && (
-          <button onClick={onViewer} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
-            <Eye size={16} /> Open view-only
-          </button>
-        )}
-        <p className="mt-4 text-center text-xs text-slate-400">Forgot your PIN? Ask the main admin.</p>
+        <p className="mt-1 text-center text-sm text-slate-300">Admin PIN, or your own PIN to see your documents</p>
+        <div className="mt-5">
+          <PinPad onLogin={onLogin} dark />
+        </div>
+        <p className="mt-4 text-center text-xs text-slate-400">Forgot your PIN? Ask the admin.</p>
       </div>
     </div>
   );
 }
 
-/** Shown in place of admin-only pages when no admin is logged in. */
-export function AdminOnly({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAdmin();
-  if (isAdmin) return <>{children}</>;
+/** PIN request shown inside a page (or a pop-up) when the page needs a login. */
+export function PinGate({ forPersonId, forName, adminOnly, title, onDone }: { forPersonId?: string; forName?: string; adminOnly?: boolean; title?: string; onDone?: () => void }) {
+  const { login } = useAdmin();
   return (
-    <div className="card mx-auto flex max-w-md flex-col items-center px-6 py-14 text-center">
-      <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Lock size={28} /></div>
-      <h2 className="text-lg font-semibold">Admin only</h2>
-      <p className="mt-1 text-sm text-muted">Log in with the admin PIN to scan, add, update or delete people and documents.</p>
-      <a href="/login" className="btn-primary mt-5"><KeyRound size={16} /> Admin login</a>
+    <div className="card mx-auto w-full max-w-sm p-6">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br from-indigo-500 to-sky-500 text-white shadow-lg shadow-indigo-500/30">
+        <Lock size={24} />
+      </div>
+      <h2 className="mt-4 text-center text-xl font-bold">{title ?? (adminOnly ? "Admin PIN" : forName ? `${forName}'s PIN` : "Enter your PIN")}</h2>
+      <p className="mt-1 text-center text-sm text-muted">
+        {adminOnly ? "Only the admin can open this." : forName ? `Enter ${forName}'s PIN (or the admin PIN).` : "Enter your PIN to continue."}
+      </p>
+      <div className="mt-5">
+        <PinPad
+          forPersonId={forPersonId}
+          forName={forName}
+          adminOnly={adminOnly}
+          onLogin={async (r, name) => {
+            await login(r, name);
+            onDone?.();
+          }}
+        />
+      </div>
     </div>
   );
+}
+
+/** Admin-only pages (Admin panel, Settings). */
+export function AdminOnly({ children }: { children: ReactNode }) {
+  const { isAdmin, status, lockNow } = useAdmin();
+  if (isAdmin) return <>{children}</>;
+  if (status === "member") {
+    return (
+      <div className="card mx-auto flex max-w-md flex-col items-center px-6 py-14 text-center">
+        <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Lock size={28} /></div>
+        <h2 className="text-lg font-semibold">Admin only</h2>
+        <p className="mt-1 text-sm text-muted">Only the admin can open this page.</p>
+        <button className="btn-primary mt-5" onClick={lockNow}>Log out</button>
+      </div>
+    );
+  }
+  return <PinGate adminOnly />;
+}
+
+/** Shown when the current login may not see this person (or nobody is logged in). */
+export function NotYours({ personId, personName }: { personId?: string; personName?: string } = {}) {
+  const { status, lockNow } = useAdmin();
+  if (status === "locked") return <PinGate forPersonId={personId} forName={personName} />;
+  return (
+    <div className="card mx-auto flex max-w-md flex-col items-center px-6 py-14 text-center">
+      <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-rose-500/10 text-rose-500"><Lock size={28} /></div>
+      <h2 className="text-lg font-semibold">Private</h2>
+      <p className="mt-1 text-sm text-muted">This belongs to someone else. You can only see your own documents.</p>
+      <div className="mt-5 flex gap-2">
+        <a href="/vault" className="btn-primary">My documents</a>
+        <button className="btn-ghost" onClick={lockNow}>Switch user</button>
+      </div>
+    </div>
+  );
+}
+
+/** Pages that need any login (e.g. Scan). */
+export function RequireLogin({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }

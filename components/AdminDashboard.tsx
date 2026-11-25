@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { AlertTriangle, Download, ExternalLink, FileText, FolderDown, HardDrive, Loader2, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, KeyRound, Download, ExternalLink, FileText, FolderDown, HardDrive, Loader2, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { downloadAllZip, downloadPersonZip } from "@/lib/export";
 import { db, deleteDocument, deletePerson, type Person } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
@@ -11,9 +11,13 @@ import { downloadDocument } from "@/lib/backup";
 import { Avatar, expiryStatus, formatDate } from "./ui";
 import { PersonForm } from "./PersonForm";
 import { toast } from "./Toast";
+import { PersonPinDialog } from "./PersonPinDialog";
+import { useAdmin } from "./AdminLock";
+import { getMemberPins } from "@/lib/lock";
 
 /** Admin dashboard: totals, every person and every document with update / delete. */
 export function AdminDashboard() {
+  const { refresh } = useAdmin();
   const people = useLiveQuery(() => db.people.orderBy("createdAt").toArray(), [], [] as Person[]);
   const docs = useLiveQuery(() => db.documents.orderBy("createdAt").reverse().toArray(), [], []);
   const [form, setForm] = useState<{ open: boolean; person?: Person }>({ open: false });
@@ -21,6 +25,12 @@ export function AdminDashboard() {
   const [tab, setTab] = useState<"people" | "documents">("people");
   const [usedMb, setUsedMb] = useState<number>();
   const [zipping, setZipping] = useState(""); // person id, or "all"
+  const [pinFor, setPinFor] = useState<Person | null>(null);
+  const [withPin, setWithPin] = useState<Set<string>>(new Set());
+  const loadPins = () => getMemberPins().then((list) => setWithPin(new Set(list.map((m) => m.personId))));
+  useEffect(() => {
+    loadPins();
+  }, []);
 
   useEffect(() => {
     navigator.storage?.estimate?.().then((e) => setUsedMb((e.usage ?? 0) / 1024 / 1024));
@@ -107,8 +117,17 @@ export function AdminDashboard() {
                   <p className="truncate text-xs text-muted">
                     {[p.relationship, p.nicNumber && `ID ${p.nicNumber}`, `${countOf.get(p.id) ?? 0} documents`].filter(Boolean).join(" · ")}
                   </p>
+                  <p className={`mt-0.5 text-[11px] font-semibold ${withPin.has(p.id) ? "text-emerald-600" : "text-muted"}`}>{withPin.has(p.id) ? "🔑 Has own PIN" : "No PIN — only the admin can see their documents"}</p>
                 </div>
                 <div className="flex gap-1">
+                  <button
+                    onClick={() => setPinFor(p)}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold ${withPin.has(p.id) ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"}`}
+                    title="Personal PIN"
+                    aria-label={`PIN for ${p.fullName}`}
+                  >
+                    <KeyRound size={14} /> {withPin.has(p.id) ? "Reset PIN" : "Set PIN"}
+                  </button>
                   {(countOf.get(p.id) ?? 0) > 0 && (
                     <button
                       onClick={async () => {
@@ -189,6 +208,7 @@ export function AdminDashboard() {
       </div>
 
       <PersonForm open={form.open} person={form.person} onClose={() => setForm({ open: false })} />
+      <PersonPinDialog person={pinFor} hasPin={!!pinFor && withPin.has(pinFor.id)} onClose={() => setPinFor(null)} onChanged={() => { loadPins(); void refresh(); }} />
     </section>
   );
 }
