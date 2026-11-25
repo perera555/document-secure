@@ -17,6 +17,17 @@ const headers = { "X-DocSecure": "1" };
 
 type Scanner = { id: string; name: string; via: "USB" | "Network" };
 
+/** Suggestions for "Document", without repeats (React keys must be unique). */
+const DOC_TYPES = (() => {
+  const seen = new Set<string>();
+  return ["NIC", "Passport", "Birth certificate", "Marriage certificate", "Driving licence", "Medical report", "Bank statement", "Bill", ...CATEGORIES.map((c) => c.label)].filter((t) => {
+    const k = t.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+})();
+
 async function bridge(path: string, init?: RequestInit, timeoutMs = 2500) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -171,7 +182,7 @@ export function ScannerConnect({ people }: { people: Person[] }) {
               <span className="label">Document</span>
               <input className="input" list="scan-doc-types" placeholder="e.g. NIC" value={docType} onChange={(e) => setDocType(e.target.value)} />
               <datalist id="scan-doc-types">
-                {["NIC", "Passport", "Birth certificate", "Marriage certificate", "Driving licence", "Medical report", "Bank statement", "Bill", ...CATEGORIES.map((c) => c.label)].map((t) => <option key={t} value={t} />)}
+                {DOC_TYPES.map((t) => <option key={t} value={t} />)}
               </datalist>
             </label>
             <label>

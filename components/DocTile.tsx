@@ -9,6 +9,7 @@ import { downloadDocument, printDocument } from "@/lib/backup";
 import { BlobImage, expiryStatus, formatDate } from "./ui";
 import { Tilt3D } from "./Tilt3D";
 import { useAdmin } from "./AdminLock";
+import { toast } from "./Toast";
 
 export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: string }) {
   const router = useRouter();
@@ -65,7 +66,10 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
                 title="Delete"
                 aria-label="Delete"
                 onClick={act(async () => {
-                  if (confirm(`Delete “${doc.title}” permanently?`)) await deleteDocument(doc.id);
+                  if (confirm(`Delete “${doc.title}” permanently?`)) {
+                    await deleteDocument(doc.id);
+                    toast("Document deleted");
+                  }
                 })}
                 className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-rose-600 shadow hover:bg-white"
               >

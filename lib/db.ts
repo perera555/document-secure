@@ -59,6 +59,8 @@ export interface VaultDocument {
   extractedBy?: "ai" | "ocr" | "manual";
   /** Relative path of the PDF copy in the computer folder, e.g. "P R Perera/Medical/Blood test (2026-11-10).pdf" */
   savedPath?: string;
+  /** SHA-256 of the original first page, used to spot the same file being saved twice. */
+  fileHash?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -127,6 +129,21 @@ export async function createPerson(data: Partial<Person> & { fullName: string })
   // Create "<computer folder>/<Person name>/" with details.txt + photo, if set up.
   void computerSync().then((m) => m.savePersonToComputer(person.id));
   return person;
+}
+
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9඀-෿஀-௿]+/g, " ").trim();
+
+/** An existing person with the same name (ignoring case, dots and extra spaces), if any. */
+export async function findPersonByName(name: string, exceptId?: string) {
+  const n = normName(name);
+  if (!n) return undefined;
+  return (await db.people.toArray()).find((p) => p.id !== exceptId && normName(p.fullName) === n);
+}
+
+/** SHA-256 of a file, hex. */
+export async function hashBlob(blob: Blob): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Saves edits to a person. Their computer folder follows (and moves if renamed). */

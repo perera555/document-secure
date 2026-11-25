@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, IdCard, ImagePlus, Loader2, Plus, RotateCcw, Trash2, User } from "lucide-react";
 import { Tilt3D } from "./Tilt3D";
-import { createPerson, updatePerson, PERSON_COLORS, type DocField, type Person } from "@/lib/db";
+import { createPerson, findPersonByName, updatePerson, PERSON_COLORS, type DocField, type Person } from "@/lib/db";
 import { PERSON_FIELDS, detailsFromExtraction, type PersonDetailKey } from "@/lib/gather";
 import { blobToBase64, base64ToBlob, makeThumbnail, processImage } from "@/lib/image";
 import { extractDocument } from "@/lib/extract";
@@ -223,6 +223,11 @@ function FormBody({
 
   async function save() {
     if (!draft.fullName.trim()) return;
+    const same = await findPersonByName(draft.fullName, person?.id);
+    if (same) {
+      toast(`${same.fullName} is already added — open their card to update details`, "error");
+      return;
+    }
     setSaving(true);
     const clean = { ...draft, extraFields: extra.filter((f) => f.label.trim() || f.value.trim()) };
     try {

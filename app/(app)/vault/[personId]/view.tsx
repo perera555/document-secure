@@ -7,6 +7,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, ChevronDown, Pencil, ScanLine, Trash2, Sparkles, Folder, Plus, FileText } from "lucide-react";
 import { DocTile } from "@/components/DocTile";
 import { Tilt3D } from "@/components/Tilt3D";
+import { toast } from "@/components/Toast";
 import { useAdmin } from "@/components/AdminLock";
 import { FolderDown } from "lucide-react";
 import { downloadPersonZip } from "@/lib/export";
@@ -268,6 +269,7 @@ export default function PersonPage() {
           onClick={async () => {
             if (confirm(`Delete ${person.fullName} and all ${docs.length} of their documents? This cannot be undone.`)) {
               await deletePerson(person.id);
+              toast(`${person.fullName} deleted`);
               router.push("/vault");
             }
           }}

@@ -8,7 +8,7 @@ import {
   Camera, FileUp, Printer, RotateCw, Trash2, Sparkles, Loader2, Plus, Check, UserPlus, FolderSync,
   Inbox, PencilLine, ArrowLeft, AlertCircle, Wand2, Download,
 } from "lucide-react";
-import { createPerson, db, uid, type DocField, type Person } from "@/lib/db";
+import { createPerson, db, hashBlob, uid, type DocField, type Person } from "@/lib/db";
 import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
 import { FILTERS, isImage, makeThumbnail, processImage, type Filter } from "@/lib/image";
 import { extractDocument, type ExtractSource } from "@/lib/extract";
@@ -23,6 +23,7 @@ import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
 import { toast } from "@/components/Toast";
 import { ScannerConnect } from "@/components/ScannerConnect";
+import { BulkImport } from "@/components/BulkImport";
 import { DateSelect } from "@/components/DateSelect";
 import {
   autoSaveToComputer, computerFolderPermission, computerFolderStatus, computerFolderSupported, getComputerFolder, pickComputerFolder, previewDocPath, saveAllToComputer,
@@ -111,12 +112,15 @@ function ScanPageInner() {
     setStep("reading");
     const res = await extractDocument(list.map((p) => ({ blob: finalBlob(p), type: isImage(p.type) ? "image/jpeg" : p.type })), setStatus);
     // Use the file name too: "Shanthi Mallika NIC.jpg" → owner Shanthi Mallika, folder National ID.
-    const stem = list.map((p) => fileStem(p.name)).filter(Boolean).join(" ");
+    const stem = list.map((p) => fileStem(p.name?.split("/").join(" "))).filter(Boolean).join(" ");
+    const fileTitle = list.map((p) => fileStem(p.name?.split("/").pop())).filter(Boolean).join(" ");
     if (stem) {
       const ex = res.extraction;
       ex.ownerNameVariants = [...(ex.ownerNameVariants ?? []), stem];
       if (ex.category === "other") ex.category = categoryFromFileName(stem);
-      if (!ex.title) ex.title = stem;
+      // Prefer the file's own name over a generic or OCR-guessed title ("Scanned document").
+      if (fileTitle && (!ex.title || res.source === "ocr" || /^scanned document$/i.test(ex.title))) ex.title = fileTitle;
+      else if (!ex.title) ex.title = stem;
     }
     setResult(res);
     setStep("review");
@@ -247,6 +251,8 @@ function ScanPageInner() {
       </div>
       <input ref={fileRef} hidden multiple type="file" accept="image/*,application/pdf" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
       <input ref={phoneCamRef} hidden type="file" accept="image/*" capture="environment" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
+
+      <BulkImport queued={inbox?.length ?? 0} />
 
       <ScannerConnect people={people} />
 
@@ -481,6 +487,18 @@ function Review({
   async function save() {
     setSaving(true);
     try {
+      // No duplicates: the very same file already saved for this person → don't save it again.
+      const fileHash = pages[0] ? await hashBlob(pages[0].original) : undefined;
+      if (fileHash && owner !== "new") {
+        const existing = (await db.documents.where("personId").equals(owner).toArray()).find((d) => d.fileHash === fileHash);
+        if (existing) {
+          const inboxIds = pages.map((p) => p.inboxId).filter(Boolean) as string[];
+          if (inboxIds.length) await db.inbox.bulkDelete(inboxIds);
+          toast(`Already saved: ${existing.title} (not added again)`, "error");
+          onSaved(existing.personId, existing.category, existing.id, auto);
+          return;
+        }
+      }
       let personId = owner;
       if (owner === "new") {
         const p = await createPerson({ fullName: newName.trim() || "Unknown person", ...(fill ? toFill : {}) });
@@ -502,6 +520,7 @@ function Review({
         pages: pages.map((p) => ({ blob: finalBlob(p), type: isImage(p.type) ? "image/jpeg" : p.type })),
         thumbnail: firstImage ? await makeThumbnail(finalBlob(firstImage)) : undefined,
         extractedBy: result.source,
+        fileHash,
         createdAt: now,
         updatedAt: now,
       });

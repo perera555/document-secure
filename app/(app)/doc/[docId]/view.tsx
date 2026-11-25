@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, Download, Pencil, Printer, Trash2, Check, X, Plus, Sparkles, ChevronLeft, ChevronRight, Maximize2, Share2 } from "lucide-react";
 import { ShowMode } from "@/components/ShowMode";
+import { toast } from "@/components/Toast";
 import { shareDocument } from "@/lib/backup";
 import { db, deleteDocument, type DocField, type VaultDocument } from "@/lib/db";
 import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
@@ -118,6 +119,7 @@ export default function DocPage() {
             onClick={async () => {
               if (confirm("Delete this document permanently?")) {
                 await deleteDocument(doc.id);
+                toast("Document deleted");
                 router.push(`/vault/${doc.personId}/${doc.category}`);
               }
             }}
@@ -160,7 +162,7 @@ function EditDoc({ doc, people, onDone }: { doc: VaultDocument; people: { id: st
         <h2 className="font-semibold">Edit document</h2>
         <div className="flex gap-2">
           <button className="btn-ghost px-3" onClick={onDone}><X size={16} /></button>
-          <button className="btn-primary px-3" onClick={async () => { await db.documents.put({ ...d, updatedAt: Date.now() }); void autoSaveToComputer(d.personId, d.id); if (d.personId !== doc.personId) void savePersonToComputer(doc.personId); onDone(); }}><Check size={16} /> Save</button>
+          <button className="btn-primary px-3" onClick={async () => { await db.documents.put({ ...d, updatedAt: Date.now() }); void autoSaveToComputer(d.personId, d.id); if (d.personId !== doc.personId) void savePersonToComputer(doc.personId); toast("Document updated"); onDone(); }}><Check size={16} /> Save</button>
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

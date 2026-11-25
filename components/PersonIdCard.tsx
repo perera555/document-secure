@@ -9,6 +9,7 @@ import { PERSON_FIELDS } from "@/lib/gather";
 import { Avatar, expiryStatus, formatDate } from "./ui";
 import { Tilt3D } from "./Tilt3D";
 import { useAdmin } from "./AdminLock";
+import { toast } from "./Toast";
 
 function mrz(person: Person) {
   const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "<");
@@ -149,7 +150,10 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
                 {isAdmin && (
                 <button
                   onClick={act(async () => {
-                    if (confirm(`Delete ${person.fullName} and all ${docs.length} of their documents? This cannot be undone.`)) await deletePerson(person.id);
+                    if (confirm(`Delete ${person.fullName} and all ${docs.length} of their documents? This cannot be undone.`)) {
+                      await deletePerson(person.id);
+                      toast(`${person.fullName} deleted`);
+                    }
                   })}
                   className={`${iconBtn} hover:bg-rose-500`}
                   aria-label="Delete person"

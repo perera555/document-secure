@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Camera, ChevronDown, Plus, UserPlus } from "lucide-react";
 import { PERSON_FIELDS, type PersonDetailKey } from "@/lib/gather";
-import { createPerson, PERSON_COLORS } from "@/lib/db";
+import { createPerson, findPersonByName, PERSON_COLORS } from "@/lib/db";
 import { makeThumbnail } from "@/lib/image";
 import { Avatar } from "./ui";
 import { Tilt3D } from "./Tilt3D";
@@ -26,6 +26,11 @@ export function QuickAddCard({ onFullForm, count }: { onFullForm: () => void; co
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    const same = await findPersonByName(name);
+    if (same) {
+      toast(`${same.fullName} is already added`, "error");
+      return;
+    }
     setSaving(true);
     try {
       const filled = Object.fromEntries(Object.entries(extra).filter(([, v]) => v?.trim()));
