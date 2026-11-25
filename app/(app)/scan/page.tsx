@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -20,11 +21,12 @@ import {
 import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
+import { DateSelect } from "@/components/DateSelect";
 import {
   autoSaveToComputer, computerFolderPermission, computerFolderStatus, computerFolderSupported, getComputerFolder, pickComputerFolder, previewDocPath, saveAllToComputer,
 } from "@/lib/export";
 import { CheckCircle2, ChevronRight, FileText, FolderOpen } from "lucide-react";
-import { smartTitle } from "@/lib/naming";
+import { categoryFromFileName, fileStem, smartTitle } from "@/lib/naming";
 import { getSetting, setSetting } from "@/lib/db";
 
 interface Page {
@@ -36,11 +38,19 @@ interface Page {
   filter: Filter;
   busy?: boolean;
   inboxId?: string;
+  /** Original file name, used to recognise owner and folder, e.g. "P R Perera passport.jpg". */
+  name?: string;
 }
 
 type Step = "collect" | "reading" | "review";
 
 export default function ScanPage() {
+  return (
+    <ScanPageInner />
+  );
+}
+
+function ScanPageInner() {
   const router = useRouter();
   const people = useLiveQuery(() => db.people.toArray(), [], [] as Person[]);
   const inbox = useLiveQuery(() => db.inbox.orderBy("createdAt").toArray(), []);
@@ -73,6 +83,7 @@ export default function ScanPage() {
       filter: "auto",
       busy: isImage(it.type || it.blob.type || "image/jpeg"),
       inboxId: it.inboxId,
+      name: it.blob instanceof File ? it.blob.name : undefined,
     }));
     setPages((p) => [...p, ...added]);
     setSelected((s) => s ?? added[0]?.id);
@@ -96,6 +107,14 @@ export default function ScanPage() {
   async function read() {
     setStep("reading");
     const res = await extractDocument(pages.map((p) => ({ blob: finalBlob(p), type: isImage(p.type) ? "image/jpeg" : p.type })), setStatus);
+    // Use the file name too: "Shanthi Mallika NIC.jpg" → owner Shanthi Mallika, folder National ID.
+    const stem = pages.map((p) => fileStem(p.name)).filter(Boolean).join(" ");
+    if (stem) {
+      const ex = res.extraction;
+      ex.ownerNameVariants = [...(ex.ownerNameVariants ?? []), stem];
+      if (ex.category === "other") ex.category = categoryFromFileName(stem);
+      if (!ex.title) ex.title = stem;
+    }
     setResult(res);
     setStep("review");
   }
@@ -565,8 +584,8 @@ function Review({
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Document / reference number</label><input className="input" value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} /></div>
             <div><label className="label">Issued by</label><input className="input" value={issuer} onChange={(e) => setIssuer(e.target.value)} /></div>
-            <div><label className="label">Issue / report date</label><input className="input" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} /></div>
-            <div><label className="label">Expiry date</label><input className="input" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} /></div>
+            <div><label className="label">Issue / report date</label><DateSelect value={issueDate} onChange={setIssueDate} fromYear={1940} /></div>
+            <div><label className="label">Expiry date</label><DateSelect value={expiryDate} onChange={setExpiryDate} fromYear={new Date().getFullYear() - 15} toYear={new Date().getFullYear() + 25} /></div>
           </div>
           <div><label className="label">Summary</label><textarea className="input min-h-16" value={summary} onChange={(e) => setSummary(e.target.value)} /></div>
           <div>

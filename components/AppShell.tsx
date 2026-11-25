@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { FolderOpen, ScanLine, Settings, Moon, Sun, Inbox } from "lucide-react";
+import { FolderOpen, ScanLine, Settings, Moon, Sun, Inbox, Lock, Eye, KeyRound, LogOut, ShieldCheck, BookOpen } from "lucide-react";
+import { useAdmin } from "./AdminLock";
+import { Toaster } from "./Toast";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { db } from "@/lib/db";
 
@@ -12,6 +14,7 @@ const NAV = [
   { href: "/scan", label: "Scan", icon: ScanLine },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+const DESKTOP_NAV = [...NAV, { href: "/admin", label: "Admin", icon: Lock }, { href: "/guide", label: "Guide", icon: BookOpen }];
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -34,6 +37,43 @@ function ThemeToggle() {
   );
 }
 
+function LockControls() {
+  const { config, status, lockNow } = useAdmin();
+  if (status === "admin") {
+    return (
+      <>
+        <span className="hidden items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:flex dark:text-emerald-300">
+          <ShieldCheck size={14} /> Admin{config?.adminName ? `: ${config.adminName}` : ""}
+        </span>
+        <button
+          onClick={lockNow}
+          title="Log out (lock)"
+          aria-label="Log out"
+          className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-medium text-muted hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        >
+          <LogOut size={18} />
+          <span className="hidden sm:inline">Log out</span>
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      {status === "viewer" && (
+        <span className="hidden items-center gap-1.5 rounded-xl bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-700 sm:flex dark:text-sky-300">
+          <Eye size={14} /> View only
+        </span>
+      )}
+      <Link
+        href="/login"
+        className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300"
+      >
+        <KeyRound size={16} /> Admin login
+      </Link>
+    </>
+  );
+}
+
 function useActive() {
   const path = usePathname();
   return (href: string) => path === href || path.startsWith(href + "/") || (href === "/vault" && path.startsWith("/doc"));
@@ -48,7 +88,7 @@ function TopNavActive() {
 function TopNavLinks({ active }: { active: (href: string) => boolean }) {
   return (
     <nav className="ml-6 hidden items-center gap-1 md:flex">
-      {NAV.map((n) => (
+      {DESKTOP_NAV.map((n) => (
         <Link
           key={n.href}
           href={n.href}
@@ -110,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <TopNav />
           </Suspense>
           <div className="ml-auto flex items-center gap-1">
+            <LockControls />
             {inbox > 0 && (
               <Link href="/scan" className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                 <Inbox size={16} /> {inbox} new scan{inbox > 1 ? "s" : ""}
@@ -121,6 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 md:pb-12">{children}</main>
+      <Toaster />
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-xl md:hidden">
         <Suspense fallback={<BottomNavLinks active={() => false} />}>

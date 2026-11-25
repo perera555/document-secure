@@ -7,6 +7,8 @@ import { createPerson, PERSON_COLORS } from "@/lib/db";
 import { makeThumbnail } from "@/lib/image";
 import { Avatar } from "./ui";
 import { Tilt3D } from "./Tilt3D";
+import { DateSelect, GenderSelect } from "./DateSelect";
+import { toast } from "./Toast";
 
 /** Inline "add person" form shown as a 3D card in the people grid. */
 export function QuickAddCard({ onFullForm, count }: { onFullForm: () => void; count: number }) {
@@ -28,6 +30,7 @@ export function QuickAddCard({ onFullForm, count }: { onFullForm: () => void; co
     try {
       const filled = Object.fromEntries(Object.entries(extra).filter(([, v]) => v?.trim()));
       await createPerson({ ...filled, fullName: name, relationship, mobile, address, photo });
+      toast(`${name.trim()} added`);
       setExtra({});
       setMore(false);
       setName("");
@@ -92,15 +95,21 @@ export function QuickAddCard({ onFullForm, count }: { onFullForm: () => void; co
           {more && (
             <div className="animate-pop grid grid-cols-2 gap-2">
               {PERSON_FIELDS.filter((f) => !["mobile", "address"].includes(f.key)).map((f) => (
-                <div key={f.key} className={f.key === "email" ? "col-span-2" : ""}>
+                <div key={f.key} className={["email", "dateOfBirth", "gender"].includes(f.key) ? "col-span-2" : ""}>
                   <label className="label">{f.label}</label>
-                  <input
-                    className="input py-2"
-                    type={f.type ?? "text"}
-                    placeholder={f.placeholder}
-                    value={extra[f.key] ?? ""}
-                    onChange={(e) => setExtra((x) => ({ ...x, [f.key]: e.target.value }))}
-                  />
+                  {f.key === "dateOfBirth" ? (
+                    <DateSelect value={extra.dateOfBirth} onChange={(v) => setExtra((x) => ({ ...x, dateOfBirth: v }))} showAge />
+                  ) : f.key === "gender" ? (
+                    <GenderSelect value={extra.gender} onChange={(v) => setExtra((x) => ({ ...x, gender: v }))} />
+                  ) : (
+                    <input
+                      className="input py-2"
+                      type={f.type ?? "text"}
+                      placeholder={f.placeholder}
+                      value={extra[f.key] ?? ""}
+                      onChange={(e) => setExtra((x) => ({ ...x, [f.key]: e.target.value }))}
+                    />
+                  )}
                 </div>
               ))}
             </div>

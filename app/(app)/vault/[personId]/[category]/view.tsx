@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, FileText, ScanLine, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, FolderDown, ScanLine, X } from "lucide-react";
+import { downloadFolderZip } from "@/lib/export";
 import { db } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
 import { Empty } from "@/components/ui";
 import { DocTile } from "@/components/DocTile";
+import { useAdmin } from "@/components/AdminLock";
 
 export default function FolderPage() {
   const { personId, category } = useParams<{ personId: string; category: string }>();
@@ -18,6 +20,8 @@ export default function FolderPage() {
     [personId, category],
   );
   const c = getCategory(category);
+  const { isAdmin } = useAdmin();
+  const [zipping, setZipping] = useState(false);
   const [saved, setSaved] = useState<{ id: string; auto: boolean } | null>(null);
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -58,9 +62,27 @@ export default function FolderPage() {
         <p className="mt-1 text-sm text-white/80">
           {docs.length} document{docs.length === 1 ? "" : "s"}
         </p>
-        <Link href={`/scan?person=${personId}&category=${c.id}`} className="btn mt-5 bg-white text-gray-900 shadow-lg hover:bg-white/90">
-          <ScanLine size={18} /> Add to this folder
-        </Link>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Link href={`/scan?person=${personId}&category=${c.id}`} className="btn bg-white text-gray-900 shadow-lg hover:bg-white/90">
+            <ScanLine size={18} /> Add to this folder
+          </Link>
+          {docs.length > 0 && (
+            <button
+              className="btn bg-white/15 text-white ring-1 ring-white/40 backdrop-blur hover:bg-white/25"
+              disabled={zipping}
+              onClick={async () => {
+                setZipping(true);
+                try {
+                  await downloadFolderZip(personId, category);
+                } finally {
+                  setZipping(false);
+                }
+              }}
+            >
+              <FolderDown size={18} /> {zipping ? "Preparing…" : `Download folder (${docs.length})`}
+            </button>
+          )}
+        </div>
       </section>
 
       {docs.length === 0 ? (

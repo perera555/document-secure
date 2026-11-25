@@ -57,6 +57,52 @@ export async function downloadDocument(doc: VaultDocument, ownerName?: string) {
   downloadBlob(await pagesToPdf(doc.pages, doc.title), name);
 }
 
+/**
+ * Shares the document as one PDF through the phone's share sheet (WhatsApp, email, Viber…).
+ * Where sharing files isn't supported (most desktop browsers), downloads the PDF instead.
+ */
+export async function shareDocument(doc: VaultDocument, ownerName?: string) {
+  if (!doc.pages.length) return;
+  const { pagesToPdf } = await import("./pdf");
+  const safe = (s: string) => s.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim();
+  const name = `${safe(ownerName ?? "Document")} - ${safe(doc.title).slice(0, 60) || "Document"}.pdf`;
+  const blob = await pagesToPdf(doc.pages, doc.title);
+  const file = new File([blob], name, { type: "application/pdf" });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (nav.share && nav.canShare?.({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: doc.title, text: `${doc.title} — ${ownerName ?? ""}`.trim() });
+      return;
+    } catch (e) {
+      if ((e as DOMException)?.name === "AbortError") return; // person closed the share sheet
+    }
+  }
+  downloadBlob(blob, name);
+}
+
+/** Prints the whole document (all pages) using the browser's print dialog. */
+export async function printDocument(doc: VaultDocument) {
+  if (!doc.pages.length) return;
+  const { pagesToPdf } = await import("./pdf");
+  const url = URL.createObjectURL(await pagesToPdf(doc.pages, doc.title));
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  frame.src = url;
+  frame.onload = () => {
+    try {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    } catch {
+      window.open(url, "_blank"); // some browsers can't print a PDF from a frame: open it instead
+    }
+    setTimeout(() => {
+      frame.remove();
+      URL.revokeObjectURL(url);
+    }, 60_000);
+  };
+  document.body.appendChild(frame);
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

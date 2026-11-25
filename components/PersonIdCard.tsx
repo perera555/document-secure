@@ -8,6 +8,7 @@ import { getCategory } from "@/lib/categories";
 import { PERSON_FIELDS } from "@/lib/gather";
 import { Avatar, expiryStatus, formatDate } from "./ui";
 import { Tilt3D } from "./Tilt3D";
+import { useAdmin } from "./AdminLock";
 
 function mrz(person: Person) {
   const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "<");
@@ -23,6 +24,7 @@ function mrz(person: Person) {
 
 export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: VaultDocument[]; onEdit: () => void }) {
   const [flipped, setFlipped] = useState(false);
+  const { isAdmin } = useAdmin();
   const counts = new Map<string, number>();
   for (const d of docs) counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
   const alerts = docs.filter((d) => ["expired", "soon"].includes(expiryStatus(d.expiryDate) ?? "")).length;
@@ -72,7 +74,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
               <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">{person.relationship || "Member"}</span>
               <div className="ml-auto flex gap-1.5">
                 <button onClick={act(() => setFlipped(true))} className={iconBtn} aria-label="Show all details" title="Flip – all details"><RotateCw size={14} /></button>
-                <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>
+                {isAdmin && <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>}
               </div>
             </div>
 
@@ -97,7 +99,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
                     </div>
                   ))}
                 </dl>
-                {front.length === 0 && (
+                {front.length === 0 && isAdmin && (
                   <button onClick={act(onEdit)} className="mt-2 rounded-lg border border-dashed border-border px-2 py-1.5 text-xs text-muted hover:border-indigo-400 hover:text-indigo-500">
                     + Add ID, birthday, mobile…
                   </button>
@@ -143,7 +145,8 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
               <span className="truncate text-xs font-bold uppercase tracking-widest">{person.fullName}</span>
               <div className="ml-auto flex gap-1.5">
                 <button onClick={act(() => setFlipped(false))} className={iconBtn} aria-label="Show front" title="Flip back"><RotateCw size={14} /></button>
-                <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>
+                {isAdmin && <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>}
+                {isAdmin && (
                 <button
                   onClick={act(async () => {
                     if (confirm(`Delete ${person.fullName} and all ${docs.length} of their documents? This cannot be undone.`)) await deletePerson(person.id);
@@ -154,6 +157,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
                 >
                   <Trash2 size={14} />
                 </button>
+                )}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">

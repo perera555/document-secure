@@ -7,6 +7,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, ChevronDown, Pencil, ScanLine, Trash2, Sparkles, Folder, Plus, FileText } from "lucide-react";
 import { DocTile } from "@/components/DocTile";
 import { Tilt3D } from "@/components/Tilt3D";
+import { useAdmin } from "@/components/AdminLock";
 import { FolderDown } from "lucide-react";
 import { downloadPersonZip } from "@/lib/export";
 import { db, deletePerson } from "@/lib/db";
@@ -39,6 +40,7 @@ export default function PersonPage() {
   const [tab, setTab] = useState<string>("all");
   const [showDetails, setShowDetails] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const { isAdmin } = useAdmin();
 
   if (person === undefined || docs === undefined) {
     return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -82,7 +84,7 @@ export default function PersonPage() {
               <Link href={`/scan?person=${person.id}`} className="btn-primary">
                 <ScanLine size={18} /> Scan for {person.fullName.split(" ").at(-1)}
               </Link>
-              <button className="btn-ghost" onClick={() => setEditing(true)}>
+              <button className={`${isAdmin ? "" : "hidden "}btn-ghost`} onClick={() => setEditing(true)}>
                 <Pencil size={16} /> Edit details
               </button>
               {docs.length > 0 && (
@@ -99,7 +101,7 @@ export default function PersonPage() {
                     }
                   }}
                 >
-                  <FolderDown size={16} /> {zipping ? "Preparing…" : "Save all (ZIP)"}
+                  <FolderDown size={16} /> {zipping ? "Preparing…" : `Download all (${docs.length})`}
                 </button>
               )}
             </div>
@@ -129,7 +131,7 @@ export default function PersonPage() {
             )}
             </>
           ) : (
-            <button onClick={() => setEditing(true)} className="mt-6 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted hover:border-indigo-400 hover:text-indigo-500">
+            <button onClick={() => setEditing(true)} className={`${isAdmin ? "" : "hidden "}mt-6 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted hover:border-indigo-400 hover:text-indigo-500`}>
               + Add ID number, date of birth, mobile, email and other details
             </button>
           )}
@@ -262,7 +264,7 @@ export default function PersonPage() {
 
       <div className="flex justify-center">
         <button
-          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-rose-600"
+          className={`${isAdmin ? "" : "hidden "}inline-flex items-center gap-1.5 text-xs text-muted hover:text-rose-600`}
           onClick={async () => {
             if (confirm(`Delete ${person.fullName} and all ${docs.length} of their documents? This cannot be undone.`)) {
               await deletePerson(person.id);

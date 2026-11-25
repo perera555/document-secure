@@ -2,6 +2,22 @@
 export const CHANGELOG: { date: string; title: string; items: string[] }[] = [
   {
     date: "2026-11-25",
+    title: "Admin PIN login, Admin panel and easier forms",
+    items: [
+      "Fixed: people added with the full form now always appear",
+      "Anyone can add people and save documents; updating and deleting need the admin PIN",
+      "Admin panel: dashboard of all people and documents with edit, delete and download",
+      "Add more admins, each with their own PIN",
+      "New 4-step Add person form with a live 3D ID card",
+      "Date of birth as Day / Month / Year lists; Gender as a simple choice",
+      "Show a document full screen (e.g. to a doctor), Share by WhatsApp/email, Print",
+      "Download one document, one folder, one person or everything",
+      "File names are used to find the person and folder automatically",
+      "Auto-save to a folder on this computer, and a User & Admin guide",
+    ],
+  },
+  {
+    date: "2026-11-25",
     title: "Real folders for every person",
     items: [
       "Scans are filed automatically when it's clear whose document it is",

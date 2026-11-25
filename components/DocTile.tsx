@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Download, Pencil, Trash2 } from "lucide-react";
+import { CalendarClock, Download, Pencil, Printer, Trash2 } from "lucide-react";
 import { deleteDocument, type VaultDocument } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
-import { downloadDocument } from "@/lib/backup";
+import { downloadDocument, printDocument } from "@/lib/backup";
 import { BlobImage, expiryStatus, formatDate } from "./ui";
 import { Tilt3D } from "./Tilt3D";
+import { useAdmin } from "./AdminLock";
 
 export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: string }) {
   const router = useRouter();
   const c = getCategory(doc.category);
   const st = expiryStatus(doc.expiryDate);
+  const { isAdmin } = useAdmin();
 
   const act = (fn: () => void) => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -45,23 +47,32 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
         {/* Quick actions */}
         <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
           {doc.pages.length > 0 && (
-            <button title="Download" aria-label="Download" onClick={act(() => downloadDocument(doc, ownerName))} className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-gray-800 shadow hover:bg-white">
-              <Download size={15} />
-            </button>
+            <>
+              <button title="Download PDF" aria-label="Download" onClick={act(() => downloadDocument(doc, ownerName))} className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-gray-800 shadow hover:bg-white">
+                <Download size={15} />
+              </button>
+              <button title="Print" aria-label="Print" onClick={act(() => printDocument(doc))} className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-gray-800 shadow hover:bg-white">
+                <Printer size={15} />
+              </button>
+            </>
           )}
-          <button title="Edit" aria-label="Edit" onClick={act(() => router.push(`/doc/${doc.id}?edit=1`))} className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-gray-800 shadow hover:bg-white">
-            <Pencil size={15} />
-          </button>
-          <button
-            title="Delete"
-            aria-label="Delete"
-            onClick={act(async () => {
-              if (confirm(`Delete “${doc.title}” permanently?`)) await deleteDocument(doc.id);
-            })}
-            className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-rose-600 shadow hover:bg-white"
-          >
-            <Trash2 size={15} />
-          </button>
+          {isAdmin && (
+            <>
+              <button title="Edit" aria-label="Edit" onClick={act(() => router.push(`/doc/${doc.id}?edit=1`))} className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-gray-800 shadow hover:bg-white">
+                <Pencil size={15} />
+              </button>
+              <button
+                title="Delete"
+                aria-label="Delete"
+                onClick={act(async () => {
+                  if (confirm(`Delete “${doc.title}” permanently?`)) await deleteDocument(doc.id);
+                })}
+                className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-rose-600 shadow hover:bg-white"
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div className="p-3">

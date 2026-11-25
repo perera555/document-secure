@@ -96,6 +96,22 @@ export async function downloadPersonZip(personId: string) {
   downloadBlob(await zipPeople([p], docs, true), `${personFolder(p)}.zip`);
 }
 
+/** ZIP of one folder for one person, e.g. "P R Perera - Medical.zip" containing the PDFs. */
+export async function downloadFolderZip(personId: string, category: string) {
+  const p = await db.people.get(personId);
+  if (!p) return;
+  const all = await db.documents.where("personId").equals(personId).toArray();
+  const mine = all.filter((d) => d.category === category && d.pages.length);
+  const paths = docFilePaths(all);
+  const files: Record<string, Uint8Array> = {};
+  for (const d of mine) {
+    const fileName = paths.get(d.id)!.split("/").pop()!;
+    files[fileName] = new Uint8Array(await (await pagesToPdf(d.pages, d.title)).arrayBuffer());
+  }
+  const label = safeName(getCategory(category).label);
+  downloadBlob(new Blob([zipSync(files, { level: 0 }) as BlobPart], { type: "application/zip" }), `${personFolder(p)} - ${label}.zip`);
+}
+
 /** One ZIP with a folder for every person. */
 export async function downloadAllZip() {
   const people = await db.people.toArray();

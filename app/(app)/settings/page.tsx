@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminOnly } from "@/components/AdminLock";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -29,6 +30,14 @@ function Section({ icon, gradient, title, subtitle, children }: { icon: ReactNod
 }
 
 export default function SettingsPage() {
+  return (
+    <AdminOnly>
+      <SettingsPageInner />
+    </AdminOnly>
+  );
+}
+
+function SettingsPageInner() {
   const [info, setInfo] = useState<ServerInfo>();
   const [useAI, setUseAI] = useState(true);
   const [code, setCode] = useState("");
@@ -84,6 +93,15 @@ export default function SettingsPage() {
           {counts?.people ?? 0} people · {counts?.docs ?? 0} documents{usage ? ` · ${mb(usage.used)} used` : ""}
         </p>
       </section>
+
+      <a href="/admin" className="card flex items-center gap-4 p-5 transition hover:shadow-lg">
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-linear-to-br from-slate-700 to-indigo-700 text-white shadow-lg">🔒</span>
+        <span>
+          <span className="block text-lg font-bold">Admin &amp; PIN lock</span>
+          <span className="block text-sm text-muted">Create the admin, change the PIN, auto-lock and view-only mode.</span>
+        </span>
+        <span className="ml-auto text-indigo-600 dark:text-indigo-300">›</span>
+      </a>
 
       {/* Save under person's name */}
       <Section
@@ -193,6 +211,22 @@ export default function SettingsPage() {
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
               {mb(usage.used)} used of {mb(usage.quota)} available
               {usage.persisted && <><ShieldCheck size={12} className="text-emerald-500" /> protected from automatic clean-up</>}
+            </p>
+            {!usage.persisted && (
+              <button
+                className="btn-ghost mt-3"
+                onClick={async () => {
+                  const ok = (await navigator.storage?.persist?.()) ?? false;
+                  const est = await navigator.storage?.estimate?.();
+                  setUsage({ used: est?.usage ?? 0, quota: est?.quota ?? 0, persisted: ok });
+                  setMsg(ok ? "Storage is now permanent: the browser will not clear your documents." : "The browser did not allow it yet. Install the app (or bookmark it) and try again.");
+                }}
+              >
+                <HardDrive size={16} /> Get more / permanent storage
+              </button>
+            )}
+            <p className="mt-2 text-xs text-muted">
+              The space comes from this device&apos;s free disk. The browser lets DocSecure use a large part of it (often many GB). Free up disk space to get more.
             </p>
           </div>
         )}

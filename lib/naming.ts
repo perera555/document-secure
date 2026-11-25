@@ -1,4 +1,36 @@
 import { getCategory, type CategoryId } from "./categories";
+
+/** "P_R_Perera-passport (2).jpg" → "P R Perera passport". Camera/scanner names like "IMG_0012" give "". */
+export function fileStem(name?: string): string {
+  if (!name) return "";
+  const stem = name.replace(/\.[^.]+$/, "").replace(/\(\d+\)/g, " ").replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  return /^(img|image|scan|scanned|photo|dsc|pxl|document|doc|file|untitled|whatsapp image)?\s*[\d\s]*$/i.test(stem) ? "" : stem;
+}
+
+const FILE_WORDS: [RegExp, CategoryId][] = [
+  [/passport/i, "passport"],
+  [/\b(nic|n i c|national id|identity|id card|id)\b/i, "national_id"],
+  [/\b(driving|licen[cs]e|dl)\b/i, "driving_license"],
+  [/\bbirth\b/i, "birth_certificate"],
+  [/\bmarriage|wedding\b/i, "marriage_certificate"],
+  [/\b(medical|report|lab|blood|hospital|clinic|prescription|ecg|scan report|x ?ray|doctor)\b/i, "medical"],
+  [/\b(visa|ticket|boarding|travel)\b/i, "visa"],
+  [/\b(bill|electricity|water|ceb|leco|telephone|invoice|receipt)\b/i, "bills"],
+  [/\b(bank|statement|loan|cheque|account)\b/i, "bank"],
+  [/\b(insurance|policy)\b/i, "insurance"],
+  [/\b(deed|land|property|survey|lease)\b/i, "property"],
+  [/\b(vehicle|car|bike|revenue licen[cs]e|cr book)\b/i, "vehicle"],
+  [/\btax\b/i, "tax"],
+  [/\b(salary|payslip|epf|etf|appointment|employment)\b/i, "employment"],
+  [/\b(court|affidavit|attorney|will|agreement)\b/i, "legal"],
+  [/\b(certificate|school|university|degree|diploma|exam|transcript|o l|a l)\b/i, "education"],
+];
+
+/** Guesses the folder from a file name, e.g. "Shanthi NIC.jpg" → national_id. */
+export function categoryFromFileName(stem: string): CategoryId {
+  for (const [re, cat] of FILE_WORDS) if (re.test(stem)) return cat;
+  return "other";
+}
 import type { Extraction } from "./extract-types";
 
 /**

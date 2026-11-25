@@ -1,5 +1,10 @@
 import { AppShell } from "@/components/AppShell";
+import { AdminLockProvider } from "@/components/AdminLock";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AdminLockProvider>
+      <AppShell>{children}</AppShell>
+    </AdminLockProvider>
+  );
 }

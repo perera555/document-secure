@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Download, Pencil, Printer, Trash2, Check, X, Plus, Sparkles, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import { ArrowLeft, Download, Pencil, Printer, Trash2, Check, X, Plus, Sparkles, ChevronLeft, ChevronRight, Maximize2, Share2 } from "lucide-react";
+import { ShowMode } from "@/components/ShowMode";
+import { shareDocument } from "@/lib/backup";
 import { db, deleteDocument, type DocField, type VaultDocument } from "@/lib/db";
 import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
 import { isImage } from "@/lib/image";
-import { downloadDocument } from "@/lib/backup";
+import { downloadDocument, printDocument } from "@/lib/backup";
 import { autoSaveToComputer, savePersonToComputer } from "@/lib/export";
+import { useAdmin } from "@/components/AdminLock";
+import { DateSelect } from "@/components/DateSelect";
 import { BlobImage, Empty, expiryStatus, formatDate, useObjectUrl } from "@/components/ui";
 
 export default function DocPage() {
@@ -21,8 +25,9 @@ export default function DocPage() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState(false);
   const [full, setFull] = useState(false);
+  const { isAdmin } = useAdmin();
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("edit")) setEditing(true);
+    if (isAdmin && new URLSearchParams(window.location.search).get("edit")) setEditing(true);
   }, []);
 
   if (doc === undefined) return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -52,10 +57,11 @@ export default function DocPage() {
           </div>
           {doc.pages.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-border p-3">
-              <button className="btn-ghost" onClick={() => downloadDocument(doc, person?.fullName)}><Download size={16} /> Download</button>
-              <button className="btn-ghost" onClick={() => setEditing(true)}><Pencil size={16} /> Edit</button>
-              <button className="btn-ghost" onClick={() => printPages(doc)}><Printer size={16} /> Print</button>
-              {pg && isImage(pg.type) && <button className="btn-ghost" onClick={() => setFull(true)}><Maximize2 size={16} /> Full screen</button>}
+              <button className="btn-primary" onClick={() => setFull(true)}><Maximize2 size={16} /> Show</button>
+              <button className="btn-ghost" onClick={() => shareDocument(doc, person?.fullName)}><Share2 size={16} /> Share</button>
+              <button className="btn-ghost" onClick={() => downloadDocument(doc, person?.fullName)}><Download size={16} /> Download PDF</button>
+              <button className="btn-ghost" onClick={() => printDocument(doc)}><Printer size={16} /> Print</button>
+              <button className={`${isAdmin ? "" : "hidden "}btn-ghost`} onClick={() => setEditing(true)}><Pencil size={16} /> Edit</button>
             </div>
           )}
         </section>
@@ -71,7 +77,7 @@ export default function DocPage() {
                   <h1 className="text-xl font-bold">{doc.title}</h1>
                   <p className="text-sm text-muted">{person?.fullName} · {c.label}</p>
                 </div>
-                <button className="btn-ghost px-3" onClick={() => setEditing(true)}><Pencil size={16} /> Edit</button>
+                <button className={`${isAdmin ? "" : "hidden "}btn-ghost px-3`} onClick={() => setEditing(true)}><Pencil size={16} /> Edit</button>
               </div>
               {doc.summary && <p className="mt-4 rounded-xl bg-indigo-500/5 p-3 text-sm">{doc.summary}</p>}
               <dl className="mt-4 grid grid-cols-2 gap-4">
@@ -108,7 +114,7 @@ export default function DocPage() {
           )}
 
           <button
-            className="btn-ghost text-rose-600"
+            className={`${isAdmin ? "" : "hidden "}btn-ghost text-rose-600`}
             onClick={async () => {
               if (confirm("Delete this document permanently?")) {
                 await deleteDocument(doc.id);
@@ -121,12 +127,7 @@ export default function DocPage() {
         </section>
       </div>
 
-      {full && pg && isImage(pg.type) && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/95 p-2" onClick={() => setFull(false)}>
-          <BlobImage blob={pg.blob} alt={doc.title} className="max-h-full max-w-full object-contain" />
-          <button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white" aria-label="Close"><X /></button>
-        </div>
-      )}
+      {full && <ShowMode doc={doc} ownerName={person?.fullName} onClose={() => setFull(false)} />}
     </div>
   );
 }
@@ -146,24 +147,6 @@ function PageView({ blob, type, onFull }: { blob: Blob; type: string; onFull: ()
   if (type === "application/pdf") return <iframe src={url} title="PDF" className="h-[70vh] w-full rounded-lg bg-white" />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt="Document page" onClick={onFull} className="max-h-[70vh] cursor-zoom-in rounded-lg object-contain shadow-xl" />;
-}
-
-function printPages(doc: VaultDocument) {
-  const urls = doc.pages.filter((p) => isImage(p.type)).map((p) => URL.createObjectURL(p.blob));
-  if (!urls.length) {
-    const u = URL.createObjectURL(doc.pages[0].blob);
-    window.open(u, "_blank");
-    return;
-  }
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(
-    `<title>${doc.title.replace(/</g, "")}</title><style>@page{margin:0}body{margin:0}img{width:100%;page-break-after:always;display:block}</style>` +
-      urls.map((u) => `<img src="${u}">`).join(""),
-  );
-  w.document.close();
-  w.onload = () => w.print();
-  setTimeout(() => w.print(), 800);
 }
 
 function EditDoc({ doc, people, onDone }: { doc: VaultDocument; people: { id: string; fullName: string }[]; onDone: () => void }) {
@@ -196,8 +179,8 @@ function EditDoc({ doc, people, onDone }: { doc: VaultDocument; people: { id: st
       <div className="grid gap-4 sm:grid-cols-2">
         <div><label className="label">Number</label><input className="input" value={d.documentNumber ?? ""} onChange={(e) => set("documentNumber", e.target.value)} /></div>
         <div><label className="label">Issued by</label><input className="input" value={d.issuer ?? ""} onChange={(e) => set("issuer", e.target.value)} /></div>
-        <div><label className="label">Issue date</label><input className="input" type="date" value={d.issueDate ?? ""} onChange={(e) => set("issueDate", e.target.value)} /></div>
-        <div><label className="label">Expiry date</label><input className="input" type="date" value={d.expiryDate ?? ""} onChange={(e) => set("expiryDate", e.target.value)} /></div>
+        <div><label className="label">Issue date</label><DateSelect value={d.issueDate} onChange={(v) => set("issueDate", v)} fromYear={1940} /></div>
+        <div><label className="label">Expiry date</label><DateSelect value={d.expiryDate} onChange={(v) => set("expiryDate", v)} fromYear={new Date().getFullYear() - 15} toYear={new Date().getFullYear() + 25} /></div>
       </div>
       <div><label className="label">Summary</label><textarea className="input" value={d.summary ?? ""} onChange={(e) => set("summary", e.target.value)} /></div>
       <div>

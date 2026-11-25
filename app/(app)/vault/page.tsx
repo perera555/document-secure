@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, ScanLine, Search, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, Plus, ScanLine, Search, Users } from "lucide-react";
 import { db, type Person, type VaultDocument } from "@/lib/db";
 import { PERSON_FIELDS } from "@/lib/gather";
 import { PersonForm } from "@/components/PersonForm";
-import { InstallButton } from "@/components/InstallButton";
 import { QuickAddCard } from "@/components/QuickAddCard";
 import { PersonIdCard } from "@/components/PersonIdCard";
+import { useAdmin } from "@/components/AdminLock";
+import { AutoSaveBar } from "@/components/AutoSaveBar";
 
 export default function VaultPage() {
   const people = useLiveQuery(() => db.people.orderBy("createdAt").toArray(), []);
   const docs = useLiveQuery(() => db.documents.toArray(), []);
   const [form, setForm] = useState<{ open: boolean; person?: Person }>({ open: false });
   const [q, setQ] = useState("");
+  const { isAdmin } = useAdmin();
 
   const byPerson = useMemo(() => {
     const m = new Map<string, VaultDocument[]>();
@@ -48,12 +50,16 @@ export default function VaultPage() {
               {people.length} {people.length === 1 ? "person" : "people"} · {docs.length} document{docs.length === 1 ? "" : "s"} · stored privately on this device
             </p>
           </div>
+          {/* Always visible. Without the admin login they lead to the PIN login first. */}
           <div className="flex flex-wrap gap-2">
             <button className="btn bg-white text-indigo-700 shadow-lg hover:bg-indigo-50" onClick={() => setForm({ open: true })}>
               <Plus size={18} /> Add person
             </button>
             <Link href="/scan" className="btn bg-white/15 text-white ring-1 ring-white/30 backdrop-blur hover:bg-white/25">
               <ScanLine size={18} /> Scan document
+            </Link>
+            <Link href={isAdmin ? "/admin" : "/login"} className="btn bg-white/15 text-white ring-1 ring-white/30 backdrop-blur hover:bg-white/25">
+              <LayoutDashboard size={18} /> Admin panel
             </Link>
           </div>
         </div>
@@ -66,23 +72,12 @@ export default function VaultPage() {
         </div>
       )}
 
-      {people.length === 0 ? (
-        <section className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <div className="card-in">
-            <QuickAddCard count={0} onFullForm={() => setForm({ open: true })} />
-          </div>
-          <div className="card-in flex flex-col justify-center gap-3 p-2 sm:col-span-1 lg:col-span-2" style={{ animationDelay: "120ms" }}>
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Users size={28} /></span>
-            <h2 className="text-2xl font-bold">Add your first person</h2>
-            <p className="max-w-md text-muted">
-              Create a card for each family member, for example “P R Perera”, with photo and details. Scanned documents are filed into their folders automatically.
-            </p>
-            <Link href="/scan" className="btn-ghost w-fit">
-              <ScanLine size={18} /> Or just scan a document
-            </Link>
-          </div>
-        </section>
-      ) : (
+      {isAdmin && <AutoSaveBar />}
+
+
+      {(
+        // One grid for every state, so the "Add person" card keeps its place (and anything
+        // being typed into it) when the first person is added.
         <section className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((p, i) => (
             <div key={p.id} className="card-in" style={{ animationDelay: `${Math.min(i, 8) * 70}ms` }}>
@@ -90,17 +85,22 @@ export default function VaultPage() {
             </div>
           ))}
           {!query && (
-            <div className="card-in" style={{ animationDelay: `${Math.min(shown.length, 8) * 70}ms` }}>
+            <div key="quick-add" className="card-in" style={{ animationDelay: `${Math.min(shown.length, 8) * 70}ms` }}>
               <QuickAddCard count={people.length} onFullForm={() => setForm({ open: true })} />
             </div>
           )}
-          {query && shown.length === 0 && <p className="text-sm text-muted">No one matches “{q}”.</p>}
+          {people.length === 0 && (
+            <div key="first-hint" className="card-in flex flex-col justify-center gap-3 p-2 lg:col-span-2" style={{ animationDelay: "120ms" }}>
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Users size={28} /></span>
+              <h2 className="text-2xl font-bold">Add your first person</h2>
+              <p className="max-w-md text-muted">
+                Create a card for each family member, for example “P R Perera”, with photo and details. Scanned documents are filed into their folders automatically.
+              </p>
+            </div>
+          )}
+          {query && shown.length === 0 && <p key="no-match" className="text-sm text-muted">No one matches “{q}”.</p>}
         </section>
       )}
-
-      <div className="flex justify-center pt-2">
-        <InstallButton size="sm" />
-      </div>
 
       <PersonForm open={form.open} person={form.person} onClose={() => setForm({ open: false })} />
     </div>
