@@ -267,6 +267,31 @@ export function PinPad({
   );
 }
 
+/** "Forgot admin PIN?" — the main admin PIN is a server secret, so it is reset in Vercel, not in the app. */
+export function ForgotAdminPin({ dark = false }: { dark?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="text-center">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`text-xs font-semibold underline-offset-2 hover:underline ${dark ? "text-sky-300" : "text-indigo-600 dark:text-indigo-300"}`}
+      >
+        Forgot admin PIN?
+      </button>
+      {open && (
+        <ol className={`mt-2 list-decimal space-y-1 rounded-xl p-3 pl-7 text-left text-xs ${dark ? "bg-white/10 text-slate-200" : "bg-black/4 text-muted dark:bg-white/6"}`}>
+          <li>Open <b>vercel.com</b> and sign in (account perera555).</li>
+          <li>Project <b>document-secure</b> › <b>Settings</b> › <b>Environment Variables</b>.</li>
+          <li>Edit <b>ADMIN_PIN</b>, type a new PIN (numbers only) and save.</li>
+          <li><b>Deployments</b> › the latest one › <b>Redeploy</b>. The new PIN works after about a minute.</li>
+          <li>Other admins who forgot their PIN: the main admin removes and adds them again in Admin › Admins.</li>
+        </ol>
+      )}
+    </div>
+  );
+}
+
 /** Full-screen PIN page (used by /login). */
 export function LockScreen({ onLogin, title = "Enter your PIN" }: { config?: LockConfig | null; onLogin: (r: OkLogin, name?: string) => void; title?: string }) {
   return (
@@ -282,35 +307,123 @@ export function LockScreen({ onLogin, title = "Enter your PIN" }: { config?: Loc
         <div className="mt-5">
           <PinPad onLogin={onLogin} dark />
         </div>
-        <p className="mt-4 text-center text-xs text-slate-400">Forgot your PIN? Ask the admin.</p>
+        <p className="mt-4 text-center text-xs text-slate-400">Forgot your own PIN? Ask the admin to reset it.</p>
+        <div className="mt-2">
+          <ForgotAdminPin dark />
+        </div>
       </div>
     </div>
   );
 }
 
-/** PIN request shown inside a page (or a pop-up) when the page needs a login. */
+/**
+ * PIN request shown inside a page (or a pop-up) when the page needs a login.
+ * For a person's card it also offers "Forgot PIN? Admin reset": the admin types the admin PIN,
+ * then sets a new PIN for that person on the spot.
+ */
 export function PinGate({ forPersonId, forName, adminOnly, title, onDone }: { forPersonId?: string; forName?: string; adminOnly?: boolean; title?: string; onDone?: () => void }) {
-  const { login } = useAdmin();
+  const { login, refresh } = useAdmin();
+  const [mode, setMode] = useState<"pin" | "admin" | "newpin">("pin");
+  const [notice, setNotice] = useState("");
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const heading =
+    mode === "admin" ? "Admin reset" : mode === "newpin" ? `New PIN for ${forName ?? "this person"}` : title ?? (adminOnly ? "Admin PIN" : forName ? `${forName}'s PIN` : "Enter your PIN");
+  const sub =
+    mode === "admin"
+      ? `Enter the admin PIN to reset ${forName ?? "this person"}'s PIN.`
+      : mode === "newpin"
+        ? "Type the new PIN twice. Give it only to this person."
+        : adminOnly
+          ? "Only the admin can open this."
+          : forName
+            ? `Enter ${forName}'s PIN (or the admin PIN).`
+            : "Enter your PIN to continue.";
+
   return (
     <div className="card mx-auto w-full max-w-sm p-6">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br from-indigo-500 to-sky-500 text-white shadow-lg shadow-indigo-500/30">
         <Lock size={24} />
       </div>
-      <h2 className="mt-4 text-center text-xl font-bold">{title ?? (adminOnly ? "Admin PIN" : forName ? `${forName}'s PIN` : "Enter your PIN")}</h2>
-      <p className="mt-1 text-center text-sm text-muted">
-        {adminOnly ? "Only the admin can open this." : forName ? `Enter ${forName}'s PIN (or the admin PIN).` : "Enter your PIN to continue."}
-      </p>
+      <h2 className="mt-4 text-center text-xl font-bold">{heading}</h2>
+      <p className="mt-1 text-center text-sm text-muted">{sub}</p>
+      {notice && <p className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2 text-center text-sm font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
+
       <div className="mt-5">
-        <PinPad
-          forPersonId={forPersonId}
-          forName={forName}
-          adminOnly={adminOnly}
-          onLogin={async (r, name) => {
-            await login(r, name);
-            onDone?.();
-          }}
-        />
+        {mode === "pin" && (
+          <PinPad
+            key="pin"
+            forPersonId={forPersonId}
+            forName={forName}
+            adminOnly={adminOnly}
+            onLogin={async (r, name) => {
+              await login(r, name);
+              onDone?.();
+            }}
+          />
+        )}
+        {mode === "admin" && (
+          <PinPad
+            key="admin"
+            adminOnly
+            onLogin={() => {
+              setErr("");
+              setMode("newpin");
+            }}
+          />
+        )}
+        {mode === "newpin" && forPersonId && (
+          <form
+            className="space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setErr("");
+              if (!/^\d{4,8}$/.test(p1)) return setErr("PIN must be 4 to 8 numbers.");
+              if (p1 !== p2) return setErr("The two PINs are different.");
+              setBusy(true);
+              try {
+                const { pinInUse, setMemberPin } = await import("@/lib/lock");
+                if (await pinInUse(p1, forPersonId)) return setErr("This PIN is already used. Choose another one.");
+                await setMemberPin(forPersonId, p1);
+                await refresh();
+                setP1("");
+                setP2("");
+                setNotice(`New PIN saved. ${forName ?? "They"} can now open the card with it.`);
+                setMode("pin");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <input className="input text-center text-2xl tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} autoFocus placeholder="New PIN" aria-label="New PIN" value={p1} onChange={(e) => setP1(e.target.value.replace(/\D/g, ""))} />
+            <input className="input text-center text-2xl tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} placeholder="Again" aria-label="New PIN again" value={p2} onChange={(e) => setP2(e.target.value.replace(/\D/g, ""))} />
+            {err && <p className="text-center text-sm font-medium text-rose-600">{err}</p>}
+            <button className="btn-primary w-full py-3" disabled={busy}>{busy ? <Loader2 size={18} className="animate-spin" /> : null} Save new PIN</button>
+          </form>
+        )}
       </div>
+
+      {(adminOnly || mode === "admin") && (
+        <div className="mt-4">
+          <ForgotAdminPin />
+        </div>
+      )}
+      {forPersonId && !adminOnly && (
+        <div className="mt-4 text-center">
+          {mode === "pin" ? (
+            <button className="text-xs font-semibold text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-300" onClick={() => { setNotice(""); setMode("admin"); }}>
+              Forgot PIN? Admin reset
+            </button>
+          ) : (
+            <button className="text-xs text-muted underline-offset-2 hover:underline" onClick={() => setMode("pin")}>
+              Back
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
