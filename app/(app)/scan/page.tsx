@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Camera, FileUp, Printer, RotateCw, Trash2, Sparkles, Loader2, Plus, Check, UserPlus, FolderSync,
-  Inbox, PencilLine, ArrowLeft, AlertCircle, Wand2,
+  Inbox, PencilLine, ArrowLeft, AlertCircle, Wand2, Download,
 } from "lucide-react";
 import { createPerson, db, uid, type DocField, type Person } from "@/lib/db";
 import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
@@ -21,6 +21,7 @@ import {
 import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
+import { toast } from "@/components/Toast";
 import { DateSelect } from "@/components/DateSelect";
 import {
   autoSaveToComputer, computerFolderPermission, computerFolderStatus, computerFolderSupported, getComputerFolder, pickComputerFolder, previewDocPath, saveAllToComputer,
@@ -104,11 +105,11 @@ function ScanPageInner() {
   const finalBlob = (p: Page) => p.processed ?? p.original;
   const sel = pages.find((p) => p.id === selected);
 
-  async function read() {
+  async function read(list: Page[] = pages) {
     setStep("reading");
-    const res = await extractDocument(pages.map((p) => ({ blob: finalBlob(p), type: isImage(p.type) ? "image/jpeg" : p.type })), setStatus);
+    const res = await extractDocument(list.map((p) => ({ blob: finalBlob(p), type: isImage(p.type) ? "image/jpeg" : p.type })), setStatus);
     // Use the file name too: "Shanthi Mallika NIC.jpg" → owner Shanthi Mallika, folder National ID.
-    const stem = pages.map((p) => fileStem(p.name)).filter(Boolean).join(" ");
+    const stem = list.map((p) => fileStem(p.name)).filter(Boolean).join(" ");
     if (stem) {
       const ex = res.extraction;
       ex.ownerNameVariants = [...(ex.ownerNameVariants ?? []), stem];
@@ -122,6 +123,45 @@ function ScanPageInner() {
   function manual() {
     setResult({ extraction: emptyExtraction(), source: "manual" });
     setStep("review");
+  }
+
+  /*
+   * Hands-free scanner: while this page is open with "File automatically" on, every new scan
+   * that arrives from the scanner folder is read and filed by itself, one after another.
+   * Scans that aren't clear stop at the review screen for a person to choose.
+   */
+  const fromScanner = useRef(false);
+  const tried = useRef(new Set<string>());
+  useEffect(() => {
+    if (!autoFile || step !== "collect" || pages.length > 0 || !inbox?.length) return;
+    const item = inbox.find((i) => !tried.current.has(i.id));
+    if (!item) return;
+    tried.current.add(item.id);
+    fromScanner.current = true;
+    (async () => {
+      const image = isImage(item.type || item.blob.type);
+      const processed = image ? (await processImage(item.blob, { filter: "auto" })).blob : undefined;
+      const page: Page = { id: uid(), original: item.blob, type: item.type || item.blob.type, processed, rotate: 0, filter: "auto", inboxId: item.id, name: item.name };
+      setPages([page]);
+      setSelected(page.id);
+      await read([page]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFile, step, pages.length, inbox]);
+
+  async function afterSave(pid: string, cat: CategoryId, docId: string, auto: boolean) {
+    if (!fromScanner.current) {
+      router.push(`/vault/${pid}/${cat}?saved=${docId}${auto ? "&auto=1" : ""}`);
+      return;
+    }
+    // Scanner batch: stay here, report, and move on to the next scan.
+    fromScanner.current = false;
+    const [p, d] = await Promise.all([db.people.get(pid), db.documents.get(docId)]);
+    toast(`Filed: ${d?.title ?? "scan"} → ${p?.fullName ?? ""} › ${getCategory(cat).label}`);
+    setPages([]);
+    setSelected(undefined);
+    setResult(undefined);
+    setStep("collect");
   }
 
   if (step === "reading") {
@@ -149,8 +189,11 @@ function ScanPageInner() {
         result={result}
         preset={preset}
         autoFile={autoFile}
-        onBack={() => setStep("collect")}
-        onSaved={(pid, cat, docId, auto) => router.push(`/vault/${pid}/${cat}?saved=${docId}${auto ? "&auto=1" : ""}`)}
+        onBack={() => {
+          fromScanner.current = false;
+          setStep("collect");
+        }}
+        onSaved={afterSave}
       />
     );
   }
@@ -292,7 +335,7 @@ function ScanPageInner() {
 
       {pages.length > 0 && (
         <div className="safe-bottom sticky bottom-20 z-30 md:bottom-4">
-          <button className="btn-primary w-full py-4 text-base" disabled={pages.some((p) => p.busy)} onClick={read}>
+          <button className="btn-primary w-full py-4 text-base" disabled={pages.some((p) => p.busy)} onClick={() => read()}>
             <Sparkles size={20} /> Read & file {pages.length} page{pages.length > 1 ? "s" : ""}
           </button>
         </div>
@@ -369,6 +412,23 @@ function ScannerPanel({ inboxCount }: { inboxCount: number }) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Windows helper that drives the scanner itself (HP DeskJet and any WIA scanner) */}
+      <div className="mt-4 rounded-2xl border border-border bg-black/2 p-4 dark:bg-white/3">
+        <p className="text-sm font-semibold">Scan straight from your printer-scanner (Windows)</p>
+        <p className="mt-1 text-xs text-muted">
+          Websites cannot control a scanner, so DocSecure gives you a small Windows helper. Double-click <b>DocSecure Scan</b>, say whose document it is,
+          and the page is scanned (300 DPI) into <b>Documents › DocSecure Scans</b>. Choose that folder above once — every scan is then read and filed automatically.
+        </p>
+        <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-xs text-muted">
+          <li>Download and unzip the helper (Windows may ask “Run anyway?” — it only uses your scanner).</li>
+          <li>Double-click <b>DocSecure-Scan.cmd</b> and type the person&apos;s name and document type (e.g. “Shanthi Mallika”, “NIC”).</li>
+          <li>Keep DocSecure open on this Scan page with “File automatically” on.</li>
+        </ol>
+        <a href="/tools/DocSecure-Scan.zip" download className="btn-ghost mt-3 w-fit text-xs">
+          <Download size={14} /> Download “DocSecure Scan” for Windows
+        </a>
       </div>
     </section>
   );

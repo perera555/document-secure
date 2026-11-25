@@ -28,6 +28,7 @@ const USER: { title: string; steps: Step[] }[] = [
       { t: "Add a person", d: "My People › “+ Add person”, or fill the “Add person” card. The full form has 4 short steps: Photo & name › Birth & ID › Contact › Certificates, with a live 3D card." },
       { t: "Fill from ID card", d: "In the form press “Fill from ID card” and take a photo of the ID card, passport or birth certificate. Empty fields are filled for you." },
       { t: "Save a document", d: "Press “Scan document”: use the camera, upload photos/PDF, or the printer-scanner folder. Several pages become one document." },
+      { t: "Scan from the printer-scanner (HP DeskJet)", d: "On Windows, double-click “DocSecure Scan” on the Desktop (download it on the Scan page). Type whose document and what it is, e.g. “Shanthi Mallika” and “NIC”. The page is scanned at 300 DPI. Keep DocSecure open on the Scan page with “File automatically” on, and the scanner folder chosen once — it files every scan by itself." },
       { t: "Automatic filing", d: "DocSecure reads the document and its file name (e.g. “Shanthi Mallika NIC.jpg”), finds the person and folder, names it and saves it. If unsure, it asks you to choose." },
     ],
   },

@@ -3,7 +3,13 @@ import { getCategory, type CategoryId } from "./categories";
 /** "P_R_Perera-passport (2).jpg" → "P R Perera passport". Camera/scanner names like "IMG_0012" give "". */
 export function fileStem(name?: string): string {
   if (!name) return "";
-  const stem = name.replace(/\.[^.]+$/, "").replace(/\(\d+\)/g, " ").replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  const stem = name
+    .replace(/\.[^.]+$/, "")
+    .replace(/\(\d{4}-\d{2}-\d{2}[^)]*\)/g, " ") // "(2026-11-25 13.44.33)" added by DocSecure Scan
+    .replace(/\(\d+\)/g, " ")
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return /^(img|image|scan|scanned|photo|dsc|pxl|document|doc|file|untitled|whatsapp image)?\s*[\d\s]*$/i.test(stem) ? "" : stem;
 }
 
