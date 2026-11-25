@@ -5,7 +5,7 @@ export const CHANGELOG: { date: string; title: string; items: string[] }[] = [
     title: "Admin PIN login, Admin panel and easier forms",
     items: [
       "Fixed: people added with the full form now always appear",
-      "Scan straight from the printer-scanner (Windows helper “DocSecure Scan”); scans are filed hands-free",
+      "Scan with printer: search scanners, choose yours (e.g. HP DeskJet), press Scan — in original colour, filed automatically",
       "Anyone can add people and save documents; updating and deleting need the admin PIN",
       "Admin panel: dashboard of all people and documents with edit, delete and download",
       "Add more admins, each with their own PIN",

@@ -12,10 +12,37 @@ param(
   [string]$Type = "",
   [int]$Dpi = 300,
   [switch]$Gray,
-  [switch]$NoPrompt
+  [switch]$NoPrompt,
+  # Started from the "Scan with printer" button in DocSecure: docsecure-scan://scan?person=...&type=...
+  [string]$Url = ""
 )
 $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "DocSecure Scan"
+
+$fromApp = $false
+# "Start helper" button in DocSecure: start the background scanner helper and quit.
+if ($Url -match '^docsecure-scan://bridge') {
+  $bridgeScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "DocSecure-Scanner-Bridge.ps1"
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$bridgeScript`""
+  exit 0
+}
+if ($Url -match '^docsecure-scan:') {
+  $fromApp = $true
+  $query = ($Url -split '\?', 2)[1]
+  if ($query) {
+    foreach ($pair in $query -split '&') {
+      $kv = $pair -split '=', 2
+      $value = [Uri]::UnescapeDataString((($kv[1] + "") -replace '\+', ' ')).Trim()
+      switch ($kv[0]) {
+        "person" { $Person = $value }
+        "type"   { $Type = $value }
+        "dpi"    { if ($value -match '^\d+$') { $Dpi = [int]$value } }
+        "gray"   { if ($value -eq "1") { $Gray = $true } }
+      }
+    }
+  }
+  $NoPrompt = $true   # the app already said whose document it is
+}
 
 function Say($text, $color = "Gray") { Write-Host $text -ForegroundColor $color }
 
@@ -42,7 +69,7 @@ $candidates = @($dm.DeviceInfos) | Where-Object { $_.Type -ne 2 -and $_.Type -ne
   Sort-Object { if ($_.DeviceID -match "Usb") { 0 } else { 1 } }
 if (-not $candidates) {
   Say "  No scanner found. Check the printer is on and connected, then try again." "Red"
-  if (-not $NoPrompt) { Read-Host "  Press Enter to close" | Out-Null }
+  if (-not $NoPrompt -or $fromApp) { Read-Host "  Press Enter to close" | Out-Null }
   exit 1
 }
 
@@ -64,7 +91,7 @@ foreach ($info in $candidates) {
 }
 if (-not $image) {
   Say "  The scanner did not respond. Close other scan programs (HP Smart), check the cable, and try again." "Red"
-  if (-not $NoPrompt) { Read-Host "  Press Enter to close" | Out-Null }
+  if (-not $NoPrompt -or $fromApp) { Read-Host "  Press Enter to close" | Out-Null }
   exit 1
 }
 
@@ -99,6 +126,7 @@ if ($image.FormatID -eq $JPEG) {
 Say ""
 Say "  Saved: $path" "Green"
 Say "  DocSecure will file it automatically (keep DocSecure open on the Scan page)." "Green"
+if ($fromApp) { Start-Sleep -Seconds 3; exit 0 }
 if (-not $NoPrompt) {
   Say ""
   $again = Read-Host "  Scan another page? (y/N)"

@@ -22,6 +22,7 @@ import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
 import { toast } from "@/components/Toast";
+import { ScannerConnect } from "@/components/ScannerConnect";
 import { DateSelect } from "@/components/DateSelect";
 import {
   autoSaveToComputer, computerFolderPermission, computerFolderStatus, computerFolderSupported, getComputerFolder, pickComputerFolder, previewDocPath, saveAllToComputer,
@@ -81,7 +82,8 @@ function ScanPageInner() {
       original: it.blob,
       type: it.type || it.blob.type || "image/jpeg",
       rotate: 0,
-      filter: "auto",
+      // Scans from the printer-scanner keep original colours; camera photos get auto-enhance.
+      filter: it.inboxId ? "original" : "auto",
       busy: isImage(it.type || it.blob.type || "image/jpeg"),
       inboxId: it.inboxId,
       name: it.blob instanceof File ? it.blob.name : undefined,
@@ -140,8 +142,9 @@ function ScanPageInner() {
     fromScanner.current = true;
     (async () => {
       const image = isImage(item.type || item.blob.type);
-      const processed = image ? (await processImage(item.blob, { filter: "auto" })).blob : undefined;
-      const page: Page = { id: uid(), original: item.blob, type: item.type || item.blob.type, processed, rotate: 0, filter: "auto", inboxId: item.id, name: item.name };
+      // Scanner pages keep their original colours (no enhancement filter).
+      const processed = image ? (await processImage(item.blob, { filter: "original" })).blob : undefined;
+      const page: Page = { id: uid(), original: item.blob, type: item.type || item.blob.type, processed, rotate: 0, filter: "original", inboxId: item.id, name: item.name };
       setPages([page]);
       setSelected(page.id);
       await read([page]);
@@ -244,6 +247,8 @@ function ScanPageInner() {
       </div>
       <input ref={fileRef} hidden multiple type="file" accept="image/*,application/pdf" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
       <input ref={phoneCamRef} hidden type="file" accept="image/*" capture="environment" onChange={(e) => { addBlobs([...(e.target.files ?? [])].map((f) => ({ blob: f, type: f.type }))); e.target.value = ""; }} />
+
+      <ScannerConnect people={people} />
 
       <ScannerPanel inboxCount={inbox?.length ?? 0} />
 
@@ -422,9 +427,9 @@ function ScannerPanel({ inboxCount }: { inboxCount: number }) {
           and the page is scanned (300 DPI) into <b>Documents › DocSecure Scans</b>. Choose that folder above once — every scan is then read and filed automatically.
         </p>
         <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-xs text-muted">
-          <li>Download and unzip the helper (Windows may ask “Run anyway?” — it only uses your scanner).</li>
-          <li>Double-click <b>DocSecure-Scan.cmd</b> and type the person&apos;s name and document type (e.g. “Shanthi Mallika”, “NIC”).</li>
-          <li>Keep DocSecure open on this Scan page with “File automatically” on.</li>
+          <li>Download and unzip the helper, then double-click <b>Install-DocSecure-Scan.cmd</b> once (Windows may ask “Run anyway?” — it only uses your scanner).</li>
+          <li>Use the <b>Scan with printer</b> box above: Search scanners › choose yours › Scan. Or double-click <b>DocSecure Scan</b> on the Desktop.</li>
+          <li>Keep “File automatically” on: every page is read and saved into the person&apos;s folder.</li>
         </ol>
         <a href="/tools/DocSecure-Scan.zip" download className="btn-ghost mt-3 w-fit text-xs">
           <Download size={14} /> Download “DocSecure Scan” for Windows
