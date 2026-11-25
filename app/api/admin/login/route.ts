@@ -19,11 +19,12 @@ function equal(a: string, b: string) {
 }
 
 export async function GET() {
-  return Response.json({ configured: Boolean(process.env.ADMIN_PIN) });
+  return Response.json({ configured: Boolean(process.env.ADMIN_PIN?.trim()) });
 }
 
 export async function POST(req: Request) {
-  const expected = process.env.ADMIN_PIN;
+  // Trim: a value pasted or piped into the env setting can carry a hidden newline.
+  const expected = process.env.ADMIN_PIN?.trim();
   if (!expected) {
     return Response.json({ ok: false, error: "not-configured" }, { status: 501 });
   }
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
 
   let pin = "";
   try {
-    pin = String(((await req.json()) as { pin?: unknown }).pin ?? "");
+    pin = String(((await req.json()) as { pin?: unknown }).pin ?? "").trim();
   } catch {
     return Response.json({ ok: false, error: "bad-request" }, { status: 400 });
   }
