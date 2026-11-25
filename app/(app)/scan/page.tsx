@@ -202,6 +202,7 @@ function ScanPageInner() {
         result={result}
         preset={lockStatus === "member" && !preset.person ? { ...preset, person: memberId } : preset}
         autoFile={autoFile}
+        askFolder={pages.some((p) => !p.inboxId)}
         onBack={() => {
           fromScanner.current = false;
           setStep("collect");
@@ -452,7 +453,7 @@ function ScannerPanel({ inboxCount }: { inboxCount: number }) {
 }
 
 function Review({
-  pages, finalBlob, people, result, preset, autoFile, onBack, onSaved,
+  pages, finalBlob, people, result, preset, autoFile, askFolder, onBack, onSaved,
 }: {
   pages: Page[];
   finalBlob: (p: Page) => Blob;
@@ -460,6 +461,8 @@ function Review({
   result: { extraction: Extraction; source: ExtractSource | "manual"; warning?: string };
   preset: { person?: string; category?: CategoryId };
   autoFile: boolean;
+  /** Files the user uploaded by hand: always ask which person and folder before saving. */
+  askFolder: boolean;
   onBack: () => void;
   onSaved: (personId: string, category: CategoryId, docId: string, auto: boolean) => void;
 }) {
@@ -543,7 +546,7 @@ function Review({
 
   // Automatic filing: the owner and the document type were recognised with confidence.
   const confidentOwner = Boolean(preset.person) || (match !== null && match.score >= 0.8);
-  const auto = autoFile && result.source !== "manual" && confidentOwner && initialCategory !== "other";
+  const auto = !askFolder && autoFile && result.source !== "manual" && confidentOwner && initialCategory !== "other";
   const started = useRef(false);
   useEffect(() => {
     if (auto && !started.current) {
@@ -578,6 +581,11 @@ function Review({
           {result.source === "ocr" && "Details read with on-device text recognition. Please check and complete them."}
           {result.source === "manual" && "Fill in what you know. You can edit it later."}
         </p>
+        {askFolder && (
+          <p className="mt-3 flex items-center gap-2 rounded-2xl bg-indigo-500/10 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            <FolderOpen size={18} className="shrink-0" /> Which folder? Choose the person and the folder below, then press Save.
+          </p>
+        )}
         {result.warning && (
           <p className="mt-2 flex items-center gap-1.5 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><AlertCircle size={14} /> AI not used: {result.warning}</p>
         )}

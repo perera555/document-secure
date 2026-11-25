@@ -86,7 +86,8 @@ const USER: Section[] = [
     id: "upload",
     title: "Add PDFs or photos from the computer",
     steps: [
-      "Press “Scan” › “Upload files” and choose the PDF or photos.",
+      "Press “Scan” › “Upload files” and choose the PDF or photos › press “Read & file”.",
+      "DocSecure asks “Which folder?”. The person and folder it found are already selected — check them, change them if needed, and press “Save”.",
       "Or, for many files: in the “Import many documents from this computer” box press “Choose files” or “Choose a folder”.",
       "Keep “File automatically” on. Every file is read and saved into the right person and folder.",
       "A good file name helps, e.g. “Shanthi Mallika NIC.pdf” or a folder named “P R Perera”.",
