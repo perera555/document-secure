@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { AlertTriangle, KeyRound, Download, ExternalLink, FileText, FolderDown, HardDrive, Loader2, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, KeyRound, LayoutGrid, List, Download, ExternalLink, FileText, FolderDown, HardDrive, Loader2, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { downloadAllZip, downloadPersonZip } from "@/lib/export";
 import { db, deleteDocument, deletePerson, type Person } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
@@ -12,6 +12,7 @@ import { Avatar, expiryStatus, formatDate } from "./ui";
 import { PersonForm } from "./PersonForm";
 import { toast } from "./Toast";
 import { PersonPinDialog } from "./PersonPinDialog";
+import { PersonIdCard } from "./PersonIdCard";
 import { useAdmin } from "./AdminLock";
 import { getMemberPins } from "@/lib/lock";
 
@@ -23,6 +24,7 @@ export function AdminDashboard() {
   const [form, setForm] = useState<{ open: boolean; person?: Person }>({ open: false });
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"people" | "documents">("people");
+  const [view, setView] = useState<"cards" | "list">("cards");
   const [usedMb, setUsedMb] = useState<number>();
   const [zipping, setZipping] = useState(""); // person id, or "all"
   const [pinFor, setPinFor] = useState<Person | null>(null);
@@ -37,6 +39,11 @@ export function AdminDashboard() {
   }, [docs.length]);
 
   const nameOf = useMemo(() => new Map(people.map((p) => [p.id, p.fullName])), [people]);
+  const docsOf = useMemo(() => {
+    const m = new Map<string, typeof docs>();
+    for (const d of docs) m.set(d.personId, [...(m.get(d.personId) ?? []), d]);
+    return m;
+  }, [docs]);
   const countOf = useMemo(() => {
     const m = new Map<string, number>();
     for (const d of docs) m.set(d.personId, (m.get(d.personId) ?? 0) + 1);
@@ -100,6 +107,19 @@ export function AdminDashboard() {
               {zipping === "all" ? <Loader2 size={16} className="animate-spin" /> : <FolderDown size={16} />} Download all documents
             </button>
           )}
+          {tab === "people" && (
+            <div className="flex rounded-xl border border-border p-0.5" role="group" aria-label="View">
+              {(["cards", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${view === v ? "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300" : "text-muted"}`}
+                >
+                  {v === "cards" ? <LayoutGrid size={14} /> : <List size={14} />} {v}
+                </button>
+              ))}
+            </div>
+          )}
           {tab === "people" ? (
             <button className="btn-primary py-2" onClick={() => setForm({ open: true })}><UserPlus size={16} /> Add person</button>
           ) : (
@@ -107,7 +127,25 @@ export function AdminDashboard() {
           )}
         </div>
 
-        {tab === "people" ? (
+        {tab === "people" && view === "cards" ? (
+          <div className="grid items-start gap-6 p-5 md:grid-cols-2 xl:grid-cols-3">
+            {shownPeople.map((p) => (
+              <div key={p.id} className="space-y-2">
+                <PersonIdCard person={p} docs={docsOf.get(p.id) ?? []} onEdit={() => setForm({ open: true, person: p })} />
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <span className={`text-xs font-semibold ${withPin.has(p.id) ? "text-emerald-600" : "text-muted"}`}>{withPin.has(p.id) ? "🔑 Has own PIN" : "No PIN (open to everyone)"}</span>
+                  <button
+                    onClick={() => setPinFor(p)}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${withPin.has(p.id) ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"}`}
+                  >
+                    <KeyRound size={14} /> {withPin.has(p.id) ? "Reset PIN" : "Set PIN"}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {shownPeople.length === 0 && <p className="text-sm text-muted">No people{query ? ` match “${q}”` : " yet"}.</p>}
+          </div>
+        ) : tab === "people" ? (
           <ul className="divide-y divide-border">
             {shownPeople.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
