@@ -48,19 +48,13 @@ export async function importBackup(file: File): Promise<{ people: number; docume
   return { people: people.length, documents: documents.length };
 }
 
-export function docFileName(doc: VaultDocument, ownerName: string | undefined, i: number) {
-  const safe = (s: string) => s.replace(/[^\w\-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
-  const ext = doc.pages[i].type === "application/pdf" ? "pdf" : "jpg";
-  const page = doc.pages.length > 1 ? `_p${i + 1}` : "";
-  return `${safe(ownerName ?? "document")}_${safe(doc.title).slice(0, 50)}${page}.${ext}`;
-}
-
-/** Downloads every page of a document at full quality. */
+/** Downloads the whole document (all pages, full quality) as one PDF: "P R Perera - Sri Lanka Passport.pdf". */
 export async function downloadDocument(doc: VaultDocument, ownerName?: string) {
-  for (let i = 0; i < doc.pages.length; i++) {
-    downloadBlob(doc.pages[i].blob, docFileName(doc, ownerName, i));
-    if (i < doc.pages.length - 1) await new Promise((r) => setTimeout(r, 400));
-  }
+  if (!doc.pages.length) return;
+  const { pagesToPdf } = await import("./pdf");
+  const safe = (s: string) => s.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim();
+  const name = `${safe(ownerName ?? "Document")} - ${safe(doc.title).slice(0, 60) || "Document"}.pdf`;
+  downloadBlob(await pagesToPdf(doc.pages, doc.title), name);
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

@@ -57,6 +57,8 @@ export interface VaultDocument {
   pages: DocPage[];
   thumbnail?: Blob;
   extractedBy?: "ai" | "ocr" | "manual";
+  /** Relative path of the PDF copy in the computer folder, e.g. "P R Perera/Medical/Blood test (2026-11-10).pdf" */
+  savedPath?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -122,15 +124,40 @@ export async function createPerson(data: Partial<Person> & { fullName: string })
     updatedAt: now,
   };
   await db.people.add(person);
+  // Create "<computer folder>/<Person name>/" with details.txt + photo, if set up.
+  void computerSync().then((m) => m.savePersonToComputer(person.id));
   return person;
 }
 
+/** Saves edits to a person. Their computer folder follows (and moves if renamed). */
+export async function updatePerson(person: Person, previousName?: string) {
+  await db.people.put({ ...person, updatedAt: Date.now() });
+  void computerSync().then((m) => m.savePersonToComputer(person.id, previousName));
+}
+
 export async function deletePerson(id: string) {
+  const person = await db.people.get(id);
+  const docs = await db.documents.where("personId").equals(id).toArray();
   await db.transaction("rw", db.people, db.documents, async () => {
     await db.documents.where("personId").equals(id).delete();
     await db.people.delete(id);
   });
+  if (person) void computerSync().then((m) => m.removePersonFromComputer(person, docs));
 }
+
+export async function deleteDocument(id: string) {
+  const doc = await db.documents.get(id);
+  await db.documents.delete(id);
+  if (doc) {
+    void computerSync().then(async (m) => {
+      await m.removeFromComputer(doc);
+      await m.savePersonToComputer(doc.personId); // refresh details.txt document list
+    });
+  }
+}
+
+/** Loaded lazily: export.ts imports this file, so a static import would be circular. */
+const computerSync = () => import("./export");
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   const row = await db.settings.get(key);

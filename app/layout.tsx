@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClientBoot } from "@/components/ClientBoot";
+import { UpdateBar } from "@/components/UpdateBar";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col bg-mesh">
         <ClientBoot />
+        <UpdateBar />
         {children}
       </body>
     </html>

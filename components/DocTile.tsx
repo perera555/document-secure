@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Download, Pencil, Trash2 } from "lucide-react";
-import { db, type VaultDocument } from "@/lib/db";
+import { deleteDocument, type VaultDocument } from "@/lib/db";
 import { getCategory } from "@/lib/categories";
 import { downloadDocument } from "@/lib/backup";
 import { BlobImage, expiryStatus, formatDate } from "./ui";
@@ -56,7 +56,7 @@ export function DocTile({ doc, ownerName }: { doc: VaultDocument; ownerName?: st
             title="Delete"
             aria-label="Delete"
             onClick={act(async () => {
-              if (confirm(`Delete “${doc.title}” permanently?`)) await db.documents.delete(doc.id);
+              if (confirm(`Delete “${doc.title}” permanently?`)) await deleteDocument(doc.id);
             })}
             className="grid h-8 w-8 place-items-center rounded-full bg-white/95 text-rose-600 shadow hover:bg-white"
           >

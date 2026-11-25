@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Camera, ImagePlus, Plus, Trash2, User } from "lucide-react";
-import { createPerson, db, PERSON_COLORS, type DocField, type Person } from "@/lib/db";
+import { createPerson, updatePerson, PERSON_COLORS, type DocField, type Person } from "@/lib/db";
 import { PERSON_FIELDS, type PersonDetailKey } from "@/lib/gather";
 import { makeThumbnail } from "@/lib/image";
 import { Avatar, Modal } from "./ui";
@@ -69,7 +69,7 @@ function FormBody({
     try {
       if (person) {
         const updated = { ...person, ...clean, fullName: clean.fullName.trim(), updatedAt: Date.now() };
-        await db.people.put(updated);
+        await updatePerson(updated, person.fullName);
         onSaved?.(updated);
       } else {
         onSaved?.(await createPerson(clean));

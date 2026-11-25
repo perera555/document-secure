@@ -12,6 +12,7 @@ import { db, getSetting, setSetting, type Person, type VaultDocument } from "./d
 import { getCategory } from "./categories";
 import { PERSON_FIELDS } from "./gather";
 import { downloadBlob } from "./backup";
+import { pagesToPdf } from "./pdf";
 
 /** Characters Windows/macOS don't allow in file or folder names. */
 export function safeName(s: string, fallback = "Unnamed") {
@@ -23,17 +24,33 @@ export function personFolder(p: Person) {
   return safeName(p.fullName, "Unknown person");
 }
 
-/** Relative paths for every page of a document, e.g. ["Medical/Blood test (2026-11-10).jpg"]. */
-export function docPaths(doc: VaultDocument): string[] {
-  const folder = safeName(getCategory(doc.category).label);
+/** "Medical/Blood test – Asiri Hospital (2026-11-10)" (no extension, no de-duplication). */
+function baseDocPath(doc: Pick<VaultDocument, "category" | "title" | "issueDate" | "createdAt">) {
+  const label = getCategory(doc.category).label;
   const date = doc.issueDate || new Date(doc.createdAt).toISOString().slice(0, 10);
-  const base = `${safeName(doc.title, getCategory(doc.category).label)} (${date})`;
-  const id = doc.id.slice(0, 4); // keeps names unique when two documents share a title & date
-  return doc.pages.map((pg, i) => {
-    const ext = pg.type === "application/pdf" ? "pdf" : pg.type === "image/png" ? "png" : "jpg";
-    const page = doc.pages.length > 1 ? ` p${i + 1}` : "";
-    return `${folder}/${base}${page} ${id}.${ext}`;
-  });
+  return `${safeName(label)}/${safeName(doc.title, label)} (${date})`;
+}
+
+/** Where a new/edited document will be saved, for showing to the user before saving. */
+export function previewDocPath(personName: string, doc: Pick<VaultDocument, "category" | "title" | "issueDate" | "createdAt">) {
+  return `${safeName(personName, "Unknown person")}/${baseDocPath(doc)}.pdf`;
+}
+
+/**
+ * One PDF path per document, e.g. "National ID/National Identity Card (2026-11-10).pdf".
+ * Documents that would get the same name get " (2)", " (3)"… in the order they were added,
+ * so names stay stable between saves.
+ */
+export function docFilePaths(docs: VaultDocument[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const seen = new Map<string, number>();
+  for (const d of [...docs].sort((a, b) => a.createdAt - b.createdAt)) {
+    const base = baseDocPath(d);
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    out.set(d.id, n === 1 ? `${base}.pdf` : `${base} (${n}).pdf`);
+  }
+  return out;
 }
 
 export function personDetailsText(p: Person, docs: VaultDocument[]) {
@@ -60,9 +77,10 @@ async function zipPeople(people: Person[], docs: VaultDocument[], nested: boolea
     const root = nested ? `${personFolder(p)}/` : "";
     files[`${root}details.txt`] = strToU8(personDetailsText(p, mine));
     if (p.photo) files[`${root}photo.jpg`] = new Uint8Array(await p.photo.arrayBuffer());
+    const paths = docFilePaths(mine);
     for (const d of mine) {
-      const paths = docPaths(d);
-      for (let i = 0; i < d.pages.length; i++) files[root + paths[i]] = new Uint8Array(await d.pages[i].blob.arrayBuffer());
+      if (!d.pages.length) continue;
+      files[root + paths.get(d.id)!] = new Uint8Array(await (await pagesToPdf(d.pages, d.title)).arrayBuffer());
     }
   }
   // Images/PDFs are already compressed, so store them (level 0) — much faster.
@@ -128,18 +146,91 @@ async function writeFile(root: FileSystemDirectoryHandle, path: string, data: Bl
   await w.close();
 }
 
-/** Writes one person's details and documents (or just `onlyDocId`) into "<folder>/<Person name>/…". */
-async function writePerson(root: Dir, p: Person, onlyDocId?: string) {
+async function removeFile(root: FileSystemDirectoryHandle, path: string) {
+  try {
+    const parts = path.split("/");
+    let dir = root;
+    for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
+    await dir.removeEntry(parts[parts.length - 1]);
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * Writes one person's details and documents into "<folder>/<Person name>/<Folder>/<doc>.pdf".
+ * `only`: a document id to write just that one, or "profile" for details.txt + photo only.
+ */
+async function writePerson(root: Dir, p: Person, only?: string) {
   const docs = await db.documents.where("personId").equals(p.id).toArray();
   const base = `${personFolder(p)}/`;
   await writeFile(root, base + "details.txt", personDetailsText(p, docs));
   if (p.photo) await writeFile(root, base + "photo.jpg", p.photo);
+  if (only === "profile") return 0;
+  const paths = docFilePaths(docs);
   for (const d of docs) {
-    if (onlyDocId && d.id !== onlyDocId) continue;
-    const paths = docPaths(d);
-    for (let i = 0; i < d.pages.length; i++) await writeFile(root, base + paths[i], d.pages[i].blob);
+    if ((only && d.id !== only) || !d.pages.length) continue;
+    const path = base + paths.get(d.id)!;
+    await writeFile(root, path, await pagesToPdf(d.pages, d.title));
+    // Renamed, moved to another folder, or moved to another person: remove the old copy.
+    if (d.savedPath && d.savedPath !== path) await removeFile(root, d.savedPath);
+    if (d.savedPath !== path) await db.documents.update(d.id, { savedPath: path });
   }
   return docs.length;
+}
+
+/**
+ * Called after a person is added or edited: creates/updates their folder with
+ * details.txt and photo.jpg. If their name changed, all their documents move to the new folder.
+ */
+export async function savePersonToComputer(personId: string, previousName?: string) {
+  try {
+    const root = await getComputerFolder();
+    if (!root || !(await computerFolderPermission(root))) return false;
+    const p = await db.people.get(personId);
+    if (!p) return false;
+    const renamed = previousName !== undefined && safeName(previousName) !== personFolder(p);
+    await writePerson(root, p, renamed ? undefined : "profile");
+    if (renamed) {
+      const old = `${safeName(previousName!, "Unknown person")}/`;
+      await removeFile(root, old + "details.txt");
+      await removeFile(root, old + "photo.jpg");
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Removes a deleted person's saved files (only files DocSecure wrote) from the computer folder. */
+export async function removePersonFromComputer(p: Person, docs: Pick<VaultDocument, "savedPath">[]) {
+  try {
+    const root = await getComputerFolder();
+    if (!root || !(await computerFolderPermission(root))) return;
+    for (const d of docs) if (d.savedPath) await removeFile(root, d.savedPath);
+    await removeFile(root, `${personFolder(p)}/details.txt`);
+    await removeFile(root, `${personFolder(p)}/photo.jpg`);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Removes a deleted document's file from the computer folder (if it was saved there). */
+export async function removeFromComputer(doc: Pick<VaultDocument, "savedPath">) {
+  try {
+    if (!doc.savedPath) return;
+    const root = await getComputerFolder();
+    if (!root || !(await computerFolderPermission(root))) return;
+    await removeFile(root, doc.savedPath);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Whether new scans are being copied into a computer folder right now. */
+export async function computerFolderStatus(): Promise<{ name: string; ok: boolean } | null> {
+  const h = await getComputerFolder();
+  return h ? { name: h.name, ok: await computerFolderPermission(h) } : null;
 }
 
 /**

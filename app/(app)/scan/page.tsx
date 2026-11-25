@@ -20,7 +20,12 @@ import {
 import { CameraCapture } from "@/components/CameraCapture";
 import { Avatar, BlobImage } from "@/components/ui";
 import { Tilt3D } from "@/components/Tilt3D";
-import { autoSaveToComputer } from "@/lib/export";
+import {
+  autoSaveToComputer, computerFolderPermission, computerFolderStatus, computerFolderSupported, getComputerFolder, pickComputerFolder, previewDocPath, saveAllToComputer,
+} from "@/lib/export";
+import { CheckCircle2, ChevronRight, FileText, FolderOpen } from "lucide-react";
+import { smartTitle } from "@/lib/naming";
+import { getSetting, setSetting } from "@/lib/db";
 
 interface Page {
   id: string;
@@ -48,6 +53,11 @@ export default function ScanPage() {
   const [result, setResult] = useState<{ extraction: Extraction; source: ExtractSource | "manual"; warning?: string }>();
   const fileRef = useRef<HTMLInputElement>(null);
   const phoneCamRef = useRef<HTMLInputElement>(null);
+
+  const [autoFile, setAutoFile] = useState(true);
+  useEffect(() => {
+    getSetting("autoFile", true).then(setAutoFile);
+  }, []);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -119,8 +129,9 @@ export default function ScanPage() {
         people={people}
         result={result}
         preset={preset}
+        autoFile={autoFile}
         onBack={() => setStep("collect")}
-        onSaved={(pid, cat) => router.push(`/vault/${pid}/${cat}`)}
+        onSaved={(pid, cat, docId, auto) => router.push(`/vault/${pid}/${cat}?saved=${docId}${auto ? "&auto=1" : ""}`)}
       />
     );
   }
@@ -130,6 +141,21 @@ export default function ScanPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Scan a document</h1>
         <p className="mt-1 text-muted">Take a photo, upload a scan, or let your scanner send pages here automatically. Add several pages for one document.</p>
+        <label className="mt-4 flex w-fit cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-emerald-600"
+            checked={autoFile}
+            onChange={async (e) => {
+              setAutoFile(e.target.checked);
+              await setSetting("autoFile", e.target.checked);
+            }}
+          />
+          <span>
+            <b>File automatically</b>
+            <span className="block text-xs text-muted">When it&apos;s clear whose document it is and what type, save it straight into their folder (you can still edit it).</span>
+          </span>
+        </label>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -330,15 +356,16 @@ function ScannerPanel({ inboxCount }: { inboxCount: number }) {
 }
 
 function Review({
-  pages, finalBlob, people, result, preset, onBack, onSaved,
+  pages, finalBlob, people, result, preset, autoFile, onBack, onSaved,
 }: {
   pages: Page[];
   finalBlob: (p: Page) => Blob;
   people: Person[];
   result: { extraction: Extraction; source: ExtractSource | "manual"; warning?: string };
   preset: { person?: string; category?: CategoryId };
+  autoFile: boolean;
   onBack: () => void;
-  onSaved: (personId: string, category: CategoryId) => void;
+  onSaved: (personId: string, category: CategoryId, docId: string, auto: boolean) => void;
 }) {
   const ex = result.extraction;
   const match = findOwner(people, ex);
@@ -346,8 +373,10 @@ function Review({
 
   const [owner, setOwner] = useState<string>(initialOwner);
   const [newName, setNewName] = useState(ex.ownerName);
-  const [category, setCategory] = useState<CategoryId>(ex.category !== "other" ? ex.category : preset.category ?? "other");
-  const [title, setTitle] = useState(ex.title);
+  const initialCategory: CategoryId = ex.category !== "other" ? ex.category : preset.category ?? "other";
+  const [category, setCategory] = useState<CategoryId>(initialCategory);
+  // Best possible name from what was read, e.g. "Passport N1234567" or "Blood test – Asiri Hospital".
+  const [title, setTitle] = useState(result.source === "manual" ? "" : smartTitle(ex, initialCategory));
   const [documentNumber, setDocumentNumber] = useState(ex.documentNumber);
   const [issueDate, setIssueDate] = useState(ex.issueDate);
   const [expiryDate, setExpiryDate] = useState(ex.expiryDate);
@@ -396,10 +425,37 @@ function Review({
       if (inboxIds.length) await db.inbox.bulkDelete(inboxIds);
       // Also copy into "<computer folder>/<Person name>/<Folder>/" when set up.
       void autoSaveToComputer(personId, docId);
-      onSaved(personId, category);
+      onSaved(personId, category, docId, auto);
     } finally {
       setSaving(false);
     }
+  }
+
+  // Automatic filing: the owner and the document type were recognised with confidence.
+  const confidentOwner = Boolean(preset.person) || (match !== null && match.score >= 0.8);
+  const auto = autoFile && result.source !== "manual" && confidentOwner && initialCategory !== "other";
+  const started = useRef(false);
+  useEffect(() => {
+    if (auto && !started.current) {
+      started.current = true;
+      void save();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto]);
+
+  if (auto) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
+        <div className="mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-xl">
+          <FolderOpen size={40} />
+        </div>
+        <h1 className="text-2xl font-bold">Filing automatically</h1>
+        <p className="mt-2 text-muted">
+          {ownerPerson?.fullName} › {getCategory(category).emoji} {getCategory(category).label}
+        </p>
+        <p className="mt-1 text-sm font-medium">{title}</p>
+      </div>
+    );
   }
 
   return (
@@ -532,6 +588,16 @@ function Review({
         </section>
       </div>
 
+      <SaveLocation
+        personName={owner === "new" ? newName || "New person" : ownerPerson?.fullName ?? ""}
+        path={previewDocPath(owner === "new" ? newName || "New person" : ownerPerson?.fullName ?? "", {
+          category,
+          title: title.trim() || getCategory(category).label,
+          issueDate,
+          createdAt: Date.now(),
+        })}
+      />
+
       <div className="safe-bottom sticky bottom-20 z-30 md:bottom-4">
         <button className="btn-primary w-full py-4 text-base" disabled={saving || (owner === "new" && !newName.trim())} onClick={save}>
           {saving ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
@@ -539,5 +605,72 @@ function Review({
         </button>
       </div>
     </div>
+  );
+}
+
+/** Shows the folder path the document will be saved under, and the computer-folder status. */
+function SaveLocation({ path, personName }: { path: string; personName: string }) {
+  const [supported, setSupported] = useState(false);
+  const [status, setStatus] = useState<{ name: string; ok: boolean } | null>(null);
+  useEffect(() => {
+    setSupported(computerFolderSupported());
+    computerFolderStatus().then(setStatus);
+  }, []);
+  const parts = path.split("/");
+
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-black/3 px-5 py-4 text-sm dark:bg-white/4">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-muted">Saved as</span>
+        {parts.map((p, i) => (
+          <span key={i} className="inline-flex items-center gap-1.5">
+            {i > 0 && <ChevronRight size={14} className="text-muted" />}
+            <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium ${i === parts.length - 1 ? "bg-rose-500/10 text-rose-700 dark:text-rose-300" : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"}`}>
+              {i === parts.length - 1 ? <FileText size={14} /> : <FolderOpen size={14} />} {p}
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 px-5 py-3 text-xs">
+        {!supported ? (
+          <span className="text-muted">Kept safely in the app under {personName || "this person"}. Use “Save all (ZIP)” on their page to get these folders on your device.</span>
+        ) : status?.ok ? (
+          <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 size={15} /> Also saved on this computer in <b>{status.name}</b>
+          </span>
+        ) : status ? (
+          <>
+            <span className="text-amber-700 dark:text-amber-300">Computer folder <b>{status.name}</b> needs permission again.</span>
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={async () => {
+                const h = await getComputerFolder();
+                if (h && (await computerFolderPermission(h, true))) setStatus({ name: h.name, ok: true });
+              }}
+            >
+              <FolderSync size={14} /> Allow
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-muted">Want real folders on this computer too?</span>
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={async () => {
+                try {
+                  const h = await pickComputerFolder();
+                  setStatus({ name: h.name, ok: true });
+                  await saveAllToComputer();
+                } catch {
+                  /* cancelled */
+                }
+              }}
+            >
+              <FolderOpen size={14} /> Choose a folder
+            </button>
+          </>
+        )}
+      </div>
+    </section>
   );
 }

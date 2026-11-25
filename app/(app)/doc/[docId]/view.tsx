@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, Download, Pencil, Printer, Trash2, Check, X, Plus, Sparkles, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
-import { db, type DocField, type VaultDocument } from "@/lib/db";
+import { db, deleteDocument, type DocField, type VaultDocument } from "@/lib/db";
 import { CATEGORIES, getCategory, type CategoryId } from "@/lib/categories";
 import { isImage } from "@/lib/image";
 import { downloadDocument } from "@/lib/backup";
-import { autoSaveToComputer } from "@/lib/export";
+import { autoSaveToComputer, savePersonToComputer } from "@/lib/export";
 import { BlobImage, Empty, expiryStatus, formatDate, useObjectUrl } from "@/components/ui";
 
 export default function DocPage() {
@@ -111,7 +111,7 @@ export default function DocPage() {
             className="btn-ghost text-rose-600"
             onClick={async () => {
               if (confirm("Delete this document permanently?")) {
-                await db.documents.delete(doc.id);
+                await deleteDocument(doc.id);
                 router.push(`/vault/${doc.personId}/${doc.category}`);
               }
             }}
@@ -177,7 +177,7 @@ function EditDoc({ doc, people, onDone }: { doc: VaultDocument; people: { id: st
         <h2 className="font-semibold">Edit document</h2>
         <div className="flex gap-2">
           <button className="btn-ghost px-3" onClick={onDone}><X size={16} /></button>
-          <button className="btn-primary px-3" onClick={async () => { await db.documents.put({ ...d, updatedAt: Date.now() }); void autoSaveToComputer(d.personId, d.id); onDone(); }}><Check size={16} /> Save</button>
+          <button className="btn-primary px-3" onClick={async () => { await db.documents.put({ ...d, updatedAt: Date.now() }); void autoSaveToComputer(d.personId, d.id); if (d.personId !== doc.personId) void savePersonToComputer(doc.personId); onDone(); }}><Check size={16} /> Save</button>
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
