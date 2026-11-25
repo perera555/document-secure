@@ -39,9 +39,11 @@ export default function PersonPage() {
   const [showAll, setShowAll] = useState(false);
   const [showCollected, setShowCollected] = useState(false);
   const [tab, setTab] = useState<string>("all");
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
   const [zipping, setZipping] = useState(false);
   const { isAdmin, canSee } = useAdmin();
+  // Anyone who can open this page may update the details (no admin PIN). Delete stays admin-only.
+  const startEdit = () => setEditing(true);
 
   if (person === undefined || docs === undefined) {
     return <div className="h-64 animate-pulse rounded-2xl bg-black/5 dark:bg-white/5" />;
@@ -86,8 +88,8 @@ export default function PersonPage() {
               <Link href={`/scan?person=${person.id}`} className="btn-primary">
                 <ScanLine size={18} /> Scan for {person.fullName.split(" ").at(-1)}
               </Link>
-              <button className={`${isAdmin ? "" : "hidden "}btn-ghost`} onClick={() => setEditing(true)}>
-                <Pencil size={16} /> Edit details
+              <button className="btn-ghost" onClick={startEdit}>
+                <Pencil size={16} /> Update details
               </button>
               {docs.length > 0 && (
                 <button
@@ -133,7 +135,7 @@ export default function PersonPage() {
             )}
             </>
           ) : (
-            <button onClick={() => setEditing(true)} className={`${isAdmin ? "" : "hidden "}mt-6 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted hover:border-indigo-400 hover:text-indigo-500`}>
+            <button onClick={startEdit} className={`mt-6 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted hover:border-indigo-400 hover:text-indigo-500`}>
               + Add ID number, date of birth, mobile, email and other details
             </button>
           )}
@@ -279,7 +281,6 @@ export default function PersonPage() {
         </button>
       </div>
 
-      <PersonForm open={editing} onClose={() => setEditing(false)} person={person} />
-    </div>
+      <PersonForm open={editing} onClose={() => setEditing(false)} person={person} />    </div>
   );
 }

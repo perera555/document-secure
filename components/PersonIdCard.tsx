@@ -75,7 +75,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
               <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">{person.relationship || "Member"}</span>
               <div className="ml-auto flex gap-1.5">
                 <button onClick={act(() => setFlipped(true))} className={iconBtn} aria-label="Show all details" title="Flip – all details"><RotateCw size={14} /></button>
-                {isAdmin && <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>}
+                <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>
               </div>
             </div>
 
@@ -100,7 +100,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
                     </div>
                   ))}
                 </dl>
-                {front.length === 0 && isAdmin && (
+                {front.length === 0 && (
                   <button onClick={act(onEdit)} className="mt-2 rounded-lg border border-dashed border-border px-2 py-1.5 text-xs text-muted hover:border-indigo-400 hover:text-indigo-500">
                     + Add ID, birthday, mobile…
                   </button>
@@ -128,7 +128,10 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
                   <AlertTriangle size={11} /> {alerts}
                 </span>
               )}
-              <span className="ml-auto flex items-center gap-0.5 font-semibold text-indigo-600 transition group-hover:gap-1.5 dark:text-indigo-300">
+              <button onClick={act(onEdit)} className="ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-indigo-500/10 px-2.5 py-1 font-semibold text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300" aria-label={`Update details of ${person.fullName}`}>
+                <Pencil size={12} /> Update
+              </button>
+              <span className="flex shrink-0 items-center gap-0.5 whitespace-nowrap font-semibold text-indigo-600 transition group-hover:gap-1.5 dark:text-indigo-300">
                 Open documents <ChevronRight size={14} />
               </span>
             </div>
@@ -146,7 +149,7 @@ export function PersonIdCard({ person, docs, onEdit }: { person: Person; docs: V
               <span className="truncate text-xs font-bold uppercase tracking-widest">{person.fullName}</span>
               <div className="ml-auto flex gap-1.5">
                 <button onClick={act(() => setFlipped(false))} className={iconBtn} aria-label="Show front" title="Flip back"><RotateCw size={14} /></button>
-                {isAdmin && <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>}
+                <button onClick={act(onEdit)} className={iconBtn} aria-label="Edit person" title="Edit"><Pencil size={14} /></button>
                 {isAdmin && (
                 <button
                   onClick={act(async () => {

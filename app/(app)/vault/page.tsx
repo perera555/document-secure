@@ -23,6 +23,9 @@ export default function VaultPage() {
   const { isAdmin, canSee } = useAdmin();
   const router = useRouter();
   const [pinFor, setPinFor] = useState<Person | null>(null);
+  // "Update details": anyone who can open the card may update it, no admin PIN needed.
+  // (A card with its own PIN is locked until that PIN is typed.) Delete stays admin-only.
+  const editPerson = (p: Person) => setForm({ open: true, person: p });
   // Everyone's card is shown. Details and documents open only with that person's PIN (or the admin PIN).
   const visible = people ?? [];
   const visibleDocs = (docs ?? []).filter((d) => canSee(d.personId));
@@ -93,7 +96,7 @@ export default function VaultPage() {
           {shown.map((p, i) => (
             <div key={p.id} className="card-in" style={{ animationDelay: `${Math.min(i, 8) * 70}ms` }}>
               {canSee(p.id) ? (
-                <PersonIdCard person={p} docs={byPerson.get(p.id) ?? []} onEdit={() => setForm({ open: true, person: p })} />
+                <PersonIdCard person={p} docs={byPerson.get(p.id) ?? []} onEdit={() => editPerson(p)} />
               ) : (
                 <LockedPersonCard person={p} onOpen={() => setPinFor(p)} />
               )}

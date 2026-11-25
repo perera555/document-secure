@@ -52,6 +52,16 @@ const USER: Section[] = [
     ],
   },
   {
+    id: "my-details",
+    title: "See and update my details",
+    steps: [
+      "Open your card. Your details (NIC, birthday, passport, mobile, email, address…) are shown at the top.",
+      "Press ✏️ “Update details” on your card (People page) or on your page.",
+      "Change the details or the photo and press “Save”. The new details show at once.",
+    ],
+    tip: "No admin PIN is needed to update details. If your card has its own PIN, type it first to open your card. Only the admin can delete.",
+  },
+  {
     id: "find",
     title: "Find a document",
     steps: [
