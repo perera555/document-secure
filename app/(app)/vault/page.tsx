@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -62,7 +62,7 @@ export default function VaultPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {isAdmin && (
+            {(
               <button className="btn bg-white text-indigo-700 shadow-lg hover:bg-indigo-50" onClick={() => setForm({ open: true })}>
                 <Plus size={18} /> Add person
               </button>
@@ -102,12 +102,12 @@ export default function VaultPage() {
               )}
             </div>
           ))}
-          {!query && isAdmin && (
+          {!query && (
             <div key="quick-add" className="card-in" style={{ animationDelay: `${Math.min(shown.length, 8) * 70}ms` }}>
               <QuickAddCard count={visible.length} onFullForm={() => setForm({ open: true })} />
             </div>
           )}
-          {visible.length === 0 && isAdmin && (
+          {visible.length === 0 && (
             <div key="first-hint" className="card-in flex flex-col justify-center gap-3 p-2 lg:col-span-2" style={{ animationDelay: "120ms" }}>
               <span className="grid h-14 w-14 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-500"><Users size={28} /></span>
               <h2 className="text-2xl font-bold">Add your first person</h2>

@@ -468,7 +468,9 @@ function Review({
 }) {
   const ex = result.extraction;
   const match = findOwner(people, ex);
-  const { isAdmin: canCreate } = useAdmin();
+  // Anyone may add a new person, except someone logged in with their own PIN (they save only for themselves).
+  const { status: lockStatus } = useAdmin();
+  const canCreate = lockStatus !== "member";
   const initialOwner = preset.person ?? match?.person.id ?? (ex.ownerName && canCreate ? "new" : people[0]?.id ?? "new");
 
   const [owner, setOwner] = useState<string>(initialOwner);

@@ -52,6 +52,17 @@ const USER: Section[] = [
     ],
   },
   {
+    id: "add-person-user",
+    title: "Add a person",
+    steps: [
+      "Go to People and press “Add person” at the top (or use the “Add person” card at the end of the list).",
+      "Type the name and relationship. Add a photo and details if you like.",
+      "Press “Save”. The new card appears at once.",
+      "Now add their documents with “Scan” or “Upload files”.",
+    ],
+    tip: "Only the admin can give a person their own PIN.",
+  },
+  {
     id: "my-details",
     title: "See and update my details",
     steps: [
